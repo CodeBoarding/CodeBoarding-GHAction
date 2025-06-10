@@ -29,8 +29,7 @@ jobs:
         id: codeboarding
         uses: ./  # Use the local action (when this is published, users would use: owner/repo@version)
         with:
-          endpoint_url: ${{ vars.CODEBOARDING_ENDPOINT || 'http://0.0.0.0:8000/generate_docs' }}
-          repository_url: ${{ github.event.inputs.test_repo || '' }}
+          repository_url: ${{ github.repository }}
           output_directory: '.codeboarding'
 
       - name: Display Action Results

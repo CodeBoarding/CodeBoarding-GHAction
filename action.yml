@@ -14,8 +14,7 @@ inputs:
   
   repository_url:
     description: 'Repository URL to fetch documentation for (defaults to current repository)'
-    required: false
-    default: ''
+    required: true
 
 outputs:
   files_created:
