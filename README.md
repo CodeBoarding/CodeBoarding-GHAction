@@ -1,6 +1,10 @@
-# CodeBoarding [Diagram-First Documentation]
-
-[![GitHub Action](https://img.shields.io/badge/GitHub-Action-blue?logo=github-actions)](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation)
+<div align="center">
+  <img src="assets/icon.svg" alt="CodeBoarding Logo" height="150" />
+  
+  # CodeBoarding [Diagram-First Documentation]
+  
+  [![GitHub Action](https://img.shields.io/badge/GitHub-Action-blue?logo=github-actions)](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation)
+</div>
 
 Generates diagram-first visualizations of your codebase using static analysis and large language models.
 
@@ -38,7 +42,7 @@ jobs:
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `repository_url` | Repository URL to fetch documentation for | Yes | - |
+| `repository_url` | Repository URL for which documentation will be generated | Yes | - |
 | `output_directory` | Directory where documentation files will be saved | No | `.codeboarding` |
 
 ## Outputs

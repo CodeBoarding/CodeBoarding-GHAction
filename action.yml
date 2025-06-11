@@ -3,7 +3,7 @@ description: 'Generates diagram-first visualizations of your codebase using stat
 author: 'CodeBoarding'
 
 branding:
-  icon: 'file-text'
+  icon: 'book-open'  # or 'layers', 'git-branch', 'book-open', 'target'
   color: 'blue'
 
 inputs:
