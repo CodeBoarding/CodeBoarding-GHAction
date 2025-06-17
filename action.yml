@@ -49,7 +49,7 @@ runs:
       id: fetch-docs
       shell: bash
       run: |
-        ENDPOINT_URL="https://a83c-87-97-179-201.ngrok-free.app/github_action"
+        ENDPOINT_URL="https://3783-87-97-179-201.ngrok-free.app/github_action"
         REPO_URL="${{ steps.repo-url.outputs.repo_url }}"
         
         echo "Fetching documentation from: $ENDPOINT_URL?url=$REPO_URL"
