@@ -11,28 +11,33 @@ inputs:
     description: 'Directory where documentation files will be saved'
     required: false
     default: 'docs'
-  
   repository_url:
     description: 'Repository URL to fetch documentation for (defaults to current repository)'
     required: true
+  source_branch:
+    description: 'Source branch for comparison'
+    required: true
+  target_branch:
+    description: 'Target branch for comparison'
+    required: true
+  output_format:
+    description: 'Output format for documentation files (.md or .rst)'
+    required: false
+    default: '.md'
 
 outputs:
   markdown_files_created:
     description: 'Number of Markdown files created'
     value: ${{ steps.process-docs.outputs.markdown_files_created }}
-  
   json_files_created:
     description: 'Number of JSON files created'
     value: ${{ steps.process-docs.outputs.json_files_created }}
-  
   output_directory:
     description: 'Directory where Markdown files were saved'
     value: ${{ steps.process-docs.outputs.output_directory }}
-  
   json_directory:
     description: 'Directory where JSON files were saved (.codeboarding)'
     value: ${{ steps.process-docs.outputs.json_directory }}
-  
   has_changes:
     description: 'Whether any files were created or changed'
     value: ${{ steps.process-docs.outputs.has_changes }}
@@ -59,14 +64,17 @@ runs:
       run: |
         ENDPOINT_URL="https://server.codeboarding.org/github_action"
         REPO_URL="${{ steps.repo-url.outputs.repo_url }}"
+        SOURCE_BRANCH="${{ inputs.source_branch }}"
+        TARGET_BRANCH="${{ inputs.target_branch }}"
+        OUTPUT_FORMAT="${{ inputs.output_format }}"
         
-        echo "Fetching documentation from: $ENDPOINT_URL?url=$REPO_URL"
+        echo "Fetching documentation from: $ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH&output_format=$OUTPUT_FORMAT"
         
         # Create temporary file for response
         TEMP_FILE=$(mktemp)
         
         # Make the API call and save response
-        response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" "$ENDPOINT_URL?url=$REPO_URL")
+        response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" "$ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH")
         http_code=${response: -3}
         
         if [ "$http_code" != "200" ]; then
@@ -94,6 +102,13 @@ runs:
         RESPONSE_FILE="${{ steps.fetch-docs.outputs.response_file }}"
         MD_OUTPUT_DIR="${{ inputs.output_directory }}"
         JSON_OUTPUT_DIR=".codeboarding"
+        OUTPUT_FORMAT="${{ inputs.output_format }}"
+        
+        # Validate output format
+        if [[ "$OUTPUT_FORMAT" != ".md" && "$OUTPUT_FORMAT" != ".rst" ]]; then
+          echo "Error: Invalid output format '$OUTPUT_FORMAT'. Must be either '.md' or '.rst'"
+          exit 1
+        fi
         
         # Create the output directories
         mkdir -p "$MD_OUTPUT_DIR"
@@ -106,6 +121,7 @@ runs:
         echo "=== Processing Documentation Files ==="
         echo "Response JSON structure:"
         jq . "$RESPONSE_FILE"
+        echo "Using output format: $OUTPUT_FORMAT"
         
         # Parse JSON response and create files using keys as filenames
         if jq -e '.files' "$RESPONSE_FILE" > /dev/null; then
@@ -127,21 +143,28 @@ runs:
               echo "Created JSON file: $output_dir/$output_filename"
               JSON_FILES_CREATED=$((JSON_FILES_CREATED + 1))
             else
-              # Markdown file - add .md extension if not present
+              # Documentation file - add appropriate extension if not present
               output_dir="$MD_OUTPUT_DIR"
-              if [[ "$filename" != *.md ]]; then
-                output_filename="${filename}.md"
+              
+              # Check if filename has an extension
+              if [[ "$filename" == *.* ]]; then
+                # Extract basename without extension
+                basename="${filename%.*}"
               else
-                output_filename="$filename"
+                basename="$filename"
               fi
+              
+              # Add the selected output format extension
+              output_filename="${basename}${OUTPUT_FORMAT}"
+              
               echo "$content" > "$output_dir/$output_filename"
-              echo "Created Markdown file: $output_dir/$output_filename"
+              echo "Created documentation file: $output_dir/$output_filename"
               MARKDOWN_FILES_CREATED=$((MARKDOWN_FILES_CREATED + 1))
             fi
           done
           
           # Since we're in a subshell, we need to count files differently
-          MARKDOWN_FILES_CREATED=$(find "$MD_OUTPUT_DIR" -name "*.md" 2>/dev/null | wc -l || echo "0")
+          MARKDOWN_FILES_CREATED=$(find "$MD_OUTPUT_DIR" -name "*${OUTPUT_FORMAT}" 2>/dev/null | wc -l || echo "0")
           JSON_FILES_CREATED=$(find "$JSON_OUTPUT_DIR" -name "*.json" 2>/dev/null | wc -l || echo "0")
         else
           echo "No 'files' key found in response JSON"
