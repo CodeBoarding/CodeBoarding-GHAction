@@ -10,20 +10,28 @@ inputs:
   output_directory:
     description: 'Directory where documentation files will be saved'
     required: false
-    default: '.codeboarding'
+    default: 'docs'
   
   repository_url:
     description: 'Repository URL to fetch documentation for (defaults to current repository)'
     required: true
 
 outputs:
-  files_created:
-    description: 'Number of files created'
-    value: ${{ steps.process-docs.outputs.files_created }}
+  markdown_files_created:
+    description: 'Number of Markdown files created'
+    value: ${{ steps.process-docs.outputs.markdown_files_created }}
+  
+  json_files_created:
+    description: 'Number of JSON files created'
+    value: ${{ steps.process-docs.outputs.json_files_created }}
   
   output_directory:
-    description: 'Directory where files were saved'
+    description: 'Directory where Markdown files were saved'
     value: ${{ steps.process-docs.outputs.output_directory }}
+  
+  json_directory:
+    description: 'Directory where JSON files were saved (.codeboarding)'
+    value: ${{ steps.process-docs.outputs.json_directory }}
   
   has_changes:
     description: 'Whether any files were created or changed'
@@ -84,13 +92,16 @@ runs:
       shell: bash
       run: |
         RESPONSE_FILE="${{ steps.fetch-docs.outputs.response_file }}"
-        OUTPUT_DIR="${{ inputs.output_directory }}"
+        MD_OUTPUT_DIR="${{ inputs.output_directory }}"
+        JSON_OUTPUT_DIR=".codeboarding"
         
-        # Create the output directory
-        mkdir -p "$OUTPUT_DIR"
+        # Create the output directories
+        mkdir -p "$MD_OUTPUT_DIR"
+        mkdir -p "$JSON_OUTPUT_DIR"
         
         # Initialize counters
-        FILES_CREATED=0
+        MARKDOWN_FILES_CREATED=0
+        JSON_FILES_CREATED=0
         
         echo "=== Processing Documentation Files ==="
         echo "Response JSON structure:"
@@ -107,45 +118,63 @@ runs:
             # Get the content for this filename
             content=$(jq -r ".files[\"$filename\"]" "$RESPONSE_FILE")
             
-            # Add .md extension if not present
-            if [[ "$filename" != *.md ]]; then
-              output_filename="${filename}.md"
-            else
+            # Determine file type and destination
+            if [[ "$filename" == *.json ]]; then
+              # JSON file
+              output_dir="$JSON_OUTPUT_DIR"
               output_filename="$filename"
+              echo "$content" > "$output_dir/$output_filename"
+              echo "Created JSON file: $output_dir/$output_filename"
+              JSON_FILES_CREATED=$((JSON_FILES_CREATED + 1))
+            else
+              # Markdown file - add .md extension if not present
+              output_dir="$MD_OUTPUT_DIR"
+              if [[ "$filename" != *.md ]]; then
+                output_filename="${filename}.md"
+              else
+                output_filename="$filename"
+              fi
+              echo "$content" > "$output_dir/$output_filename"
+              echo "Created Markdown file: $output_dir/$output_filename"
+              MARKDOWN_FILES_CREATED=$((MARKDOWN_FILES_CREATED + 1))
             fi
-            
-            # Write content to file
-            echo "$content" > "$OUTPUT_DIR/$output_filename"
-            echo "Created file: $OUTPUT_DIR/$output_filename"
-            
-            # Increment counter
-            FILES_CREATED=$((FILES_CREATED + 1))
           done
           
           # Since we're in a subshell, we need to count files differently
-          FILES_CREATED=$(ls -1 "$OUTPUT_DIR"/*.md 2>/dev/null | wc -l || echo "0")
+          MARKDOWN_FILES_CREATED=$(find "$MD_OUTPUT_DIR" -name "*.md" 2>/dev/null | wc -l || echo "0")
+          JSON_FILES_CREATED=$(find "$JSON_OUTPUT_DIR" -name "*.json" 2>/dev/null | wc -l || echo "0")
         else
           echo "No 'files' key found in response JSON"
-          FILES_CREATED=0
         fi
         
         # Clean up temporary file
         rm -f "$RESPONSE_FILE"
         
         # Check if any files were created
-        if [ "$FILES_CREATED" -gt 0 ]; then
+        TOTAL_FILES=$((MARKDOWN_FILES_CREATED + JSON_FILES_CREATED))
+        if [ "$TOTAL_FILES" -gt 0 ]; then
           HAS_CHANGES="true"
-          echo "Created $FILES_CREATED files in $OUTPUT_DIR"
+          echo "Created $MARKDOWN_FILES_CREATED Markdown files in $MD_OUTPUT_DIR"
+          echo "Created $JSON_FILES_CREATED JSON files in $JSON_OUTPUT_DIR"
           
           # List created files
-          echo "Files created:"
-          ls -la "$OUTPUT_DIR"
+          if [ "$MARKDOWN_FILES_CREATED" -gt 0 ]; then
+            echo "Markdown files created:"
+            ls -la "$MD_OUTPUT_DIR"
+          fi
+          
+          if [ "$JSON_FILES_CREATED" -gt 0 ]; then
+            echo "JSON files created:"
+            ls -la "$JSON_OUTPUT_DIR"
+          fi
         else
           HAS_CHANGES="false"
           echo "No files were created"
         fi
         
         # Set outputs
-        echo "files_created=$FILES_CREATED" >> $GITHUB_OUTPUT
-        echo "output_directory=$OUTPUT_DIR" >> $GITHUB_OUTPUT
+        echo "markdown_files_created=$MARKDOWN_FILES_CREATED" >> $GITHUB_OUTPUT
+        echo "json_files_created=$JSON_FILES_CREATED" >> $GITHUB_OUTPUT
+        echo "output_directory=$MD_OUTPUT_DIR" >> $GITHUB_OUTPUT
+        echo "json_directory=$JSON_OUTPUT_DIR" >> $GITHUB_OUTPUT
         echo "has_changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
