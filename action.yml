@@ -74,7 +74,7 @@ runs:
       id: fetch-docs
       shell: bash
       run: |
-        ENDPOINT_URL="http://0.0.0.0:8000/github_action"
+        ENDPOINT_URL="https://server.codeboarding.org/github_action"
         REPO_URL="${{ steps.repo-url.outputs.repo_url }}"
         SOURCE_BRANCH="${{ inputs.source_branch }}"
         TARGET_BRANCH="${{ inputs.target_branch }}"
