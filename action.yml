@@ -41,6 +41,9 @@ outputs:
   has_changes:
     description: 'Whether any files were created or changed'
     value: ${{ steps.process-docs.outputs.has_changes }}
+  repo_url:
+    description: 'Repository URL that was analyzed'
+    value: ${{ steps.repo-url.outputs.repo_url }}
 
 runs:
   using: 'composite'
@@ -49,12 +52,21 @@ runs:
       id: repo-url
       shell: bash
       run: |
-        if [ "${{ inputs.repository_url }}" != "" ]; then
+        # Use the provided repository URL if it's not empty
+        if [ -n "${{ inputs.repository_url }}" ]; then
           REPO_URL="${{ inputs.repository_url }}"
           echo "Using provided repository URL: $REPO_URL"
+        # Otherwise try to determine from git if we're in a git repository
+        elif git config --get remote.origin.url > /dev/null 2>&1; then
+          REPO_URL=$(git config --get remote.origin.url)
+          # Convert SSH URL to HTTPS if needed
+          if [[ $REPO_URL == git@* ]]; then
+            REPO_URL=$(echo $REPO_URL | sed 's|git@github.com:|https://github.com/|')
+          fi
+          echo "Using git remote URL: $REPO_URL"
         else
           REPO_URL="${{ github.server_url }}/${{ github.repository }}"
-          echo "Using current repository URL: $REPO_URL"
+          echo "Using GitHub context URL: $REPO_URL"
         fi
         echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT
 
@@ -62,7 +74,7 @@ runs:
       id: fetch-docs
       shell: bash
       run: |
-        ENDPOINT_URL="https://server.codeboarding.org/github_action"
+        ENDPOINT_URL="http://0.0.0.0:8000/github_action"
         REPO_URL="${{ steps.repo-url.outputs.repo_url }}"
         SOURCE_BRANCH="${{ inputs.source_branch }}"
         TARGET_BRANCH="${{ inputs.target_branch }}"

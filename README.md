@@ -17,6 +17,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [opened, synchronize, reopened]
 
 jobs:
   documentation:
@@ -24,18 +25,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required to access branch history
         
       - name: Generate Documentation
-        uses: your-username/CodeBoarding-GHAction@v1
+        uses: codeboarding/codeboarding-ghaction@v1
         with:
           repository_url: ${{ github.server_url }}/${{ github.repository }}
-          output_directory: '.codeboarding'
+          source_branch: ${{ github.head_ref || github.ref_name }}
+          target_branch: ${{ github.base_ref || 'main' }}
+          output_directory: 'docs'
+          output_format: '.md'
           
       - name: Upload Documentation
         uses: actions/upload-artifact@v4
         with:
           name: documentation
-          path: .codeboarding/
+          path: |
+            docs/
+            .codeboarding/
 ```
 
 ## Inputs
@@ -43,15 +51,30 @@ jobs:
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `repository_url` | Repository URL for which documentation will be generated | Yes | - |
-| `output_directory` | Directory where documentation files will be saved | No | `.codeboarding` |
+| `source_branch` | Source branch for comparison (typically the PR branch) | Yes | - |
+| `target_branch` | Target branch for comparison (typically the base branch) | Yes | - |
+| `output_directory` | Directory where documentation files will be saved | No | `docs` |
+| `output_format` | Format for documentation files (either `.md` or `.rst`) | No | `.md` |
 
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
-| `files_created` | Number of files created |
-| `output_directory` | Directory where files were saved |
+| `markdown_files_created` | Number of documentation files created |
+| `json_files_created` | Number of JSON files created |
+| `output_directory` | Directory where documentation files were saved |
+| `json_directory` | Directory where JSON files were saved (always `.codeboarding`) |
 | `has_changes` | Whether any files were created or changed |
+
+## How It Works
+
+The action works by:
+
+1. Analyzing the differences introduced in the source branch and putting the results in the target branch
+2. Generating documentation files based on the latest version of the source branch
+3. Outputting two types of files:
+   - Documentation files (Markdown or RST) in the specified output directory
+   - Metadata files in the `.codeboarding` directory
 
 ## License
 
