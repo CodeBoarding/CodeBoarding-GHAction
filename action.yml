@@ -86,12 +86,40 @@ runs:
         TEMP_FILE=$(mktemp)
         
         # Make the API call and save response
-        response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" "$ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH")
+        response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" "$ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH&output_format=$OUTPUT_FORMAT")
         http_code=${response: -3}
         
-        if [ "$http_code" != "200" ]; then
+        echo "API response status code: $http_code"
+        
+        if [ "$http_code" = "404" ]; then
+          echo "No documentation files were generated for this repository/branch combination."
+          echo "This might be because:"
+          echo "- No changes were detected between the source and target branches"
+          echo "- The repository or branches don't exist or are not accessible"
+          echo "- No analyzable code files were found"
+          
+          # Check if response contains error details
+          if jq -e '.detail' "$TEMP_FILE" > /dev/null 2>&1; then
+            echo "Server message: $(jq -r '.detail' "$TEMP_FILE")"
+          else
+            echo "Server response:"
+            cat "$TEMP_FILE"
+          fi
+          
+          # Create empty response for graceful handling
+          echo '{"files": {}}' > "$TEMP_FILE"
+          echo "response_file=$TEMP_FILE" >> $GITHUB_OUTPUT
+          exit 0
+        elif [ "$http_code" != "200" ]; then
           echo "Error: API call failed with status code $http_code"
+          echo "Response content:"
           cat "$TEMP_FILE"
+          
+          # Try to parse as JSON for better error message
+          if jq -e '.detail' "$TEMP_FILE" > /dev/null 2>&1; then
+            echo "Error details: $(jq -r '.detail' "$TEMP_FILE")"
+          fi
+          
           rm -f "$TEMP_FILE"
           exit 1
         fi
@@ -99,6 +127,7 @@ runs:
         # Check if response is valid JSON
         if ! jq empty "$TEMP_FILE" 2>/dev/null; then
           echo "Error: Invalid JSON response"
+          echo "Response content:"
           cat "$TEMP_FILE"
           rm -f "$TEMP_FILE"
           exit 1
