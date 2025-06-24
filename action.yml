@@ -175,7 +175,7 @@ runs:
           echo "Files key found, proceeding to create files..."
           
           # Get each key from files object and create a file with that name
-          jq -r '.files | keys[]' "$RESPONSE_FILE" | while read -r filename; do
+          while IFS= read -r filename; do
             echo "Processing file: $filename"
             
             # Get the content for this filename
@@ -208,11 +208,7 @@ runs:
               echo "Created documentation file: $output_dir/$output_filename"
               MARKDOWN_FILES_CREATED=$((MARKDOWN_FILES_CREATED + 1))
             fi
-          done
-          
-          # Since we're in a subshell, we need to count files differently
-          MARKDOWN_FILES_CREATED=$(find "$MD_OUTPUT_DIR" -name "*${OUTPUT_FORMAT}" 2>/dev/null | wc -l || echo "0")
-          JSON_FILES_CREATED=$(find "$JSON_OUTPUT_DIR" -name "*.json" 2>/dev/null | wc -l || echo "0")
+          done < <(jq -r '.files | keys[]' "$RESPONSE_FILE")
         else
           echo "No 'files' key found in response JSON"
         fi
