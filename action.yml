@@ -151,8 +151,14 @@ runs:
           exit 1
         fi
         
-        # Create the output directories
+        # Clean and create the output directories
         mkdir -p "$MD_OUTPUT_DIR"
+        
+        # Remove existing .codeboarding files before adding new ones
+        if [ -d "$JSON_OUTPUT_DIR" ]; then
+          echo "Cleaning existing JSON files from $JSON_OUTPUT_DIR"
+          rm -rf "$JSON_OUTPUT_DIR"
+        fi
         mkdir -p "$JSON_OUTPUT_DIR"
         
         # Initialize counters
