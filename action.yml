@@ -73,6 +73,7 @@ runs:
     - name: Fetch documentation files
       id: fetch-docs
       shell: bash
+      timeout-minutes: 35
       run: |
         ENDPOINT_URL="https://server.codeboarding.org/github_action"
         REPO_URL="${{ steps.repo-url.outputs.repo_url }}"
@@ -86,6 +87,15 @@ runs:
         # Create temporary file for response
         TEMP_FILE=$(mktemp)
         
+        # Add periodic output to prevent GitHub Actions timeout due to no output
+        (
+          while true; do
+            sleep 60  # Every minute
+            echo "⏳ Still processing repository analysis... ($(date))"
+          done
+        ) &
+        PROGRESS_PID=$!
+        
         # Make the API call with extended timeouts for long-running requests
         # --max-time: Maximum time for the entire operation (30 minutes)
         # --connect-timeout: Maximum time for connection establishment (60 seconds)
@@ -98,6 +108,10 @@ runs:
           --no-buffer \
           "$ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH&output_format=$OUTPUT_FORMAT")
         curl_exit_code=$?
+        
+        # Stop the progress indicator
+        kill $PROGRESS_PID 2>/dev/null || true
+        
         http_code=${response: -3}
         
         echo "API response status code: $http_code"
