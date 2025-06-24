@@ -72,6 +72,7 @@ runs:
 
     - name: Fetch documentation files
       id: fetch-docs
+      timeout-minutes: 90
       shell: bash
       run: |
         ENDPOINT_URL="https://server.codeboarding.org/github_action"
