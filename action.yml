@@ -1,5 +1,5 @@
 name: 'CodeBoarding [Diagram-First Documentation]'
-description: 'Generates diagram-first visualizations of your codebase using static analysis and large language models. Note: For large repositories, set job timeout-minutes to 60 or higher in your workflow.'
+description: 'Generates diagram-first visualizations of your codebase using static analysis and large language models.'
 author: 'CodeBoarding'
 
 branding:
