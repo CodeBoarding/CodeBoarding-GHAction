@@ -81,15 +81,38 @@ runs:
         OUTPUT_FORMAT="${{ inputs.output_format }}"
         
         echo "Fetching documentation from: $ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH&output_format=$OUTPUT_FORMAT"
+        echo "Note: This request may take 15-20 minutes for large repositories..."
         
         # Create temporary file for response
         TEMP_FILE=$(mktemp)
         
-        # Make the API call and save response
-        response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" "$ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH&output_format=$OUTPUT_FORMAT")
+        # Make the API call with extended timeouts for long-running requests
+        # --max-time: Maximum time for the entire operation (30 minutes)
+        # --connect-timeout: Maximum time for connection establishment (60 seconds)
+        # --keepalive-time: Send keepalive probes every 60 seconds
+        # --tcp-keepalive: Enable TCP keepalive
+        response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" \
+          --max-time 1800 \
+          --connect-timeout 60 \
+          --keepalive-time 60 \
+          --tcp-keepalive \
+          "$ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH&output_format=$OUTPUT_FORMAT")
         http_code=${response: -3}
         
         echo "API response status code: $http_code"
+        
+        # Handle timeout specifically
+        if [ $? -eq 28 ]; then
+          echo "Error: Request timed out after 25 minutes"
+          echo "The repository analysis is taking longer than expected."
+          echo "This might be due to:"
+          echo "- Very large repository size"
+          echo "- Complex codebase requiring extensive analysis"
+          echo "- Server load or processing delays"
+          echo "Please try again later or contact support if the issue persists."
+          rm -f "$TEMP_FILE"
+          exit 1
+        fi
         
         if [ "$http_code" = "404" ]; then
           echo "No documentation files were generated for this repository/branch combination."
