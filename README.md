@@ -79,3 +79,33 @@ The action works by:
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
+
+# CodeBoarding GitHub Action
+
+## Important: Timeout Configuration
+
+For large repositories, the analysis can take 15-45 minutes. Make sure to configure appropriate timeouts in your workflow:
+
+```yaml
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60  # Set to 60+ minutes for large repositories
+    steps:
+      - uses: actions/checkout@v4
+      - uses: your-username/codeboarding-ghaction@v1
+        with:
+          # your inputs here
+```
+
+## Timeout Guidelines
+
+- **Small repositories** (<1k files): 10-15 minutes
+- **Medium repositories** (1k-5k files): 20-30 minutes  
+- **Large repositories** (5k+ files): 30-60 minutes
+- **Very large repositories** (10k+ files): 45-90 minutes
+
+If your workflow consistently times out, consider:
+1. Increasing `timeout-minutes` to 90 or higher
+2. Running the action on a schedule during off-peak hours
+3. Analyzing specific branches with smaller diffs

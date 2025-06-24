@@ -1,5 +1,5 @@
 name: 'CodeBoarding [Diagram-First Documentation]'
-description: 'Generates diagram-first visualizations of your codebase using static analysis and large language models.'
+description: 'Generates diagram-first visualizations of your codebase using static analysis and large language models. Note: For large repositories, set job timeout-minutes to 60 or higher in your workflow.'
 author: 'CodeBoarding'
 
 branding:
@@ -73,7 +73,6 @@ runs:
     - name: Fetch documentation files
       id: fetch-docs
       shell: bash
-      timeout-minutes: 35
       run: |
         ENDPOINT_URL="https://server.codeboarding.org/github_action"
         REPO_URL="${{ steps.repo-url.outputs.repo_url }}"
@@ -81,28 +80,46 @@ runs:
         TARGET_BRANCH="${{ inputs.target_branch }}"
         OUTPUT_FORMAT="${{ inputs.output_format }}"
         
-        echo "Fetching documentation from: $ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH&output_format=$OUTPUT_FORMAT"
-        echo "Note: This request may take 15-20 minutes for large repositories..."
+        echo "🚀 Starting CodeBoarding analysis..."
+        echo "📊 Repository: $REPO_URL"
+        echo "🌿 Source branch: $SOURCE_BRANCH"
+        echo "🎯 Target branch: $TARGET_BRANCH"
+        echo "📄 Output format: $OUTPUT_FORMAT"
+        echo "⏰ This request may take 15-45 minutes for large repositories..."
+        echo "💡 If your workflow times out, increase 'timeout-minutes' in your job configuration"
         
         # Create temporary file for response
         TEMP_FILE=$(mktemp)
         
-        # Add periodic output to prevent GitHub Actions timeout due to no output
+        # Add more frequent output to prevent GitHub Actions timeout due to no output
+        # GitHub Actions can timeout if no output is produced for 10 minutes
         (
+          counter=0
           while true; do
-            sleep 60  # Every minute
-            echo "⏳ Still processing repository analysis... ($(date))"
+            sleep 30  # Every 30 seconds instead of 60
+            counter=$((counter + 1))
+            elapsed_minutes=$((counter / 2))  # Since we sleep 30 seconds, divide by 2 for minutes
+            echo "⏳ Analysis in progress... ${elapsed_minutes} minutes elapsed ($(date '+%H:%M:%S'))"
+            
+            # Add more detailed progress every 5 minutes
+            if [ $((counter % 10)) -eq 0 ]; then
+              echo "📈 Processing status: Repository analysis and documentation generation ongoing..."
+              echo "🔍 Current phase: Analyzing codebase structure and generating diagrams..."
+            fi
           done
         ) &
         PROGRESS_PID=$!
         
+        echo "🌐 Making API request to CodeBoarding server..."
+        
         # Make the API call with extended timeouts for long-running requests
-        # --max-time: Maximum time for the entire operation (30 minutes)
+        # Increased max-time to 45 minutes (2700 seconds) to handle very large repositories
+        # --max-time: Maximum time for the entire operation (45 minutes)
         # --connect-timeout: Maximum time for connection establishment (60 seconds)
         # --keepalive-time: Send keepalive probes every 60 seconds (if supported)
         # --no-buffer: Disable output buffering to show progress
         response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" \
-          --max-time 1800 \
+          --max-time 2700 \
           --connect-timeout 60 \
           --keepalive-time 60 \
           --no-buffer \
@@ -114,47 +131,55 @@ runs:
         
         http_code=${response: -3}
         
-        echo "API response status code: $http_code"
-        echo "Curl exit code: $curl_exit_code"
+        echo "✅ API request completed!"
+        echo "📋 Response status code: $http_code"
+        echo "🔧 Curl exit code: $curl_exit_code"
         
         # Handle timeout specifically
         if [ $curl_exit_code -eq 28 ]; then
-          echo "Error: Request timed out after 30 minutes"
-          echo "The repository analysis is taking longer than expected."
-          echo "This might be due to:"
-          echo "- Very large repository size"
-          echo "- Complex codebase requiring extensive analysis"
-          echo "- Server load or processing delays"
-          echo "Please try again later or contact support if the issue persists."
+          echo "❌ Error: Request timed out after 45 minutes"
+          echo "🏗️  The repository analysis is taking longer than expected."
+          echo "📊 This might be due to:"
+          echo "   • Very large repository size (>10k files)"
+          echo "   • Complex codebase requiring extensive analysis"
+          echo "   • Server load or processing delays"
+          echo "   • Network connectivity issues"
+          echo ""
+          echo "💡 Suggestions:"
+          echo "   • Try again later when server load might be lower"
+          echo "   • Consider analyzing smaller branches or specific directories"
+          echo "   • Increase your GitHub Actions job timeout-minutes to 90+"
+          echo "   • Contact support if the issue persists"
           rm -f "$TEMP_FILE"
           exit 1
         fi
         
         # Handle other curl errors
         if [ $curl_exit_code -ne 0 ]; then
-          echo "Error: Curl failed with exit code $curl_exit_code"
+          echo "❌ Error: Curl failed with exit code $curl_exit_code"
           case $curl_exit_code in
-            6) echo "Couldn't resolve host" ;;
-            7) echo "Failed to connect to host" ;;
-            56) echo "Failure in receiving network data" ;;
-            *) echo "Unknown curl error" ;;
+            6) echo "🌐 Couldn't resolve host - check network connectivity" ;;
+            7) echo "🔌 Failed to connect to host - server might be down" ;;
+            56) echo "📡 Failure in receiving network data - connection interrupted" ;;
+            *) echo "❓ Unknown curl error - check network and server status" ;;
           esac
           rm -f "$TEMP_FILE"
           exit 1
         fi
         
         if [ "$http_code" = "404" ]; then
-          echo "No documentation files were generated for this repository/branch combination."
-          echo "This might be because:"
-          echo "- No changes were detected between the source and target branches"
-          echo "- The repository or branches don't exist or are not accessible"
-          echo "- No analyzable code files were found"
+          echo "ℹ️  No documentation files were generated for this repository/branch combination."
+          echo "📝 This might be because:"
+          echo "   • No changes were detected between the source and target branches"
+          echo "   • The repository or branches don't exist or are not accessible"
+          echo "   • No analyzable code files were found"
+          echo "   • The branches are identical (no diff to analyze)"
           
           # Check if response contains error details
           if jq -e '.detail' "$TEMP_FILE" > /dev/null 2>&1; then
-            echo "Server message: $(jq -r '.detail' "$TEMP_FILE")"
+            echo "🔍 Server message: $(jq -r '.detail' "$TEMP_FILE")"
           else
-            echo "Server response:"
+            echo "📄 Server response:"
             cat "$TEMP_FILE"
           fi
           
@@ -163,13 +188,13 @@ runs:
           echo "response_file=$TEMP_FILE" >> $GITHUB_OUTPUT
           exit 0
         elif [ "$http_code" != "200" ]; then
-          echo "Error: API call failed with status code $http_code"
-          echo "Response content:"
+          echo "❌ Error: API call failed with status code $http_code"
+          echo "📄 Response content:"
           cat "$TEMP_FILE"
           
           # Try to parse as JSON for better error message
           if jq -e '.detail' "$TEMP_FILE" > /dev/null 2>&1; then
-            echo "Error details: $(jq -r '.detail' "$TEMP_FILE")"
+            echo "🔍 Error details: $(jq -r '.detail' "$TEMP_FILE")"
           fi
           
           rm -f "$TEMP_FILE"
@@ -178,14 +203,14 @@ runs:
         
         # Check if response is valid JSON
         if ! jq empty "$TEMP_FILE" 2>/dev/null; then
-          echo "Error: Invalid JSON response"
-          echo "Response content:"
+          echo "❌ Error: Invalid JSON response"
+          echo "📄 Response content:"
           cat "$TEMP_FILE"
           rm -f "$TEMP_FILE"
           exit 1
         fi
         
-        echo "API call successful"
+        echo "✅ API call successful - documentation generated!"
         echo "response_file=$TEMP_FILE" >> $GITHUB_OUTPUT
 
     - name: Process documentation files
