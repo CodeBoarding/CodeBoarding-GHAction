@@ -89,27 +89,42 @@ runs:
         # Make the API call with extended timeouts for long-running requests
         # --max-time: Maximum time for the entire operation (30 minutes)
         # --connect-timeout: Maximum time for connection establishment (60 seconds)
-        # --keepalive-time: Send keepalive probes every 60 seconds
-        # --tcp-keepalive: Enable TCP keepalive
+        # --keepalive-time: Send keepalive probes every 60 seconds (if supported)
+        # --no-buffer: Disable output buffering to show progress
         response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" \
           --max-time 1800 \
           --connect-timeout 60 \
           --keepalive-time 60 \
-          --tcp-keepalive \
+          --no-buffer \
           "$ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH&output_format=$OUTPUT_FORMAT")
+        curl_exit_code=$?
         http_code=${response: -3}
         
         echo "API response status code: $http_code"
+        echo "Curl exit code: $curl_exit_code"
         
         # Handle timeout specifically
-        if [ $? -eq 28 ]; then
-          echo "Error: Request timed out after 25 minutes"
+        if [ $curl_exit_code -eq 28 ]; then
+          echo "Error: Request timed out after 30 minutes"
           echo "The repository analysis is taking longer than expected."
           echo "This might be due to:"
           echo "- Very large repository size"
           echo "- Complex codebase requiring extensive analysis"
           echo "- Server load or processing delays"
           echo "Please try again later or contact support if the issue persists."
+          rm -f "$TEMP_FILE"
+          exit 1
+        fi
+        
+        # Handle other curl errors
+        if [ $curl_exit_code -ne 0 ]; then
+          echo "Error: Curl failed with exit code $curl_exit_code"
+          case $curl_exit_code in
+            6) echo "Couldn't resolve host" ;;
+            7) echo "Failed to connect to host" ;;
+            56) echo "Failure in receiving network data" ;;
+            *) echo "Unknown curl error" ;;
+          esac
           rm -f "$TEMP_FILE"
           exit 1
         fi
