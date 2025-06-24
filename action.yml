@@ -68,128 +68,74 @@ runs:
           REPO_URL="${{ github.server_url }}/${{ github.repository }}"
           echo "Using GitHub context URL: $REPO_URL"
         fi
-        echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT
-
-    - name: Fetch documentation files
-      id: fetch-docs
-      timeout-minutes: 90
+        echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT    - name: Create documentation job
+      id: create-job
       shell: bash
       run: |
-        ENDPOINT_URL="https://server.codeboarding.org/github_action"
+        CREATE_JOB_URL="https://server.codeboarding.org/github_action/jobs"
         REPO_URL="${{ steps.repo-url.outputs.repo_url }}"
         SOURCE_BRANCH="${{ inputs.source_branch }}"
         TARGET_BRANCH="${{ inputs.target_branch }}"
         OUTPUT_FORMAT="${{ inputs.output_format }}"
         
-        echo "🚀 Starting CodeBoarding analysis..."
+        echo "🚀 Creating CodeBoarding analysis job..."
         echo "📊 Repository: $REPO_URL"
         echo "🌿 Source branch: $SOURCE_BRANCH"
         echo "🎯 Target branch: $TARGET_BRANCH"
         echo "📄 Output format: $OUTPUT_FORMAT"
-        echo "⏰ This request may take 15-45 minutes for large repositories..."
-        echo "💡 If your workflow times out, increase 'timeout-minutes' in your job configuration"
+        
+        # Create JSON payload
+        JSON_PAYLOAD=$(jq -n \
+          --arg url "$REPO_URL" \
+          --arg source_branch "$SOURCE_BRANCH" \
+          --arg target_branch "$TARGET_BRANCH" \
+          --arg extension "$OUTPUT_FORMAT" \
+          '{
+            url: $url,
+            source_branch: $source_branch,
+            target_branch: $target_branch,
+            extension: $extension
+          }')
+        
+        echo "📋 Request payload:"
+        echo "$JSON_PAYLOAD"
         
         # Create temporary file for response
         TEMP_FILE=$(mktemp)
         
-        # Add more frequent output to prevent GitHub Actions timeout due to no output
-        # GitHub Actions can timeout if no output is produced for 10 minutes
-        (
-          counter=0
-          while true; do
-            sleep 30  # Every 30 seconds instead of 60
-            counter=$((counter + 1))
-            elapsed_minutes=$((counter / 2))  # Since we sleep 30 seconds, divide by 2 for minutes
-            echo "⏳ Analysis in progress... ${elapsed_minutes} minutes elapsed ($(date '+%H:%M:%S'))"
-            
-            # Add more detailed progress every 5 minutes
-            if [ $((counter % 10)) -eq 0 ]; then
-              echo "📈 Processing status: Repository analysis and documentation generation ongoing..."
-              echo "🔍 Current phase: Analyzing codebase structure and generating diagrams..."
-            fi
-          done
-        ) &
-        PROGRESS_PID=$!
+        echo "🌐 Making API request to create job..."
         
-        echo "🌐 Making API request to CodeBoarding server..."
-        
-        # Make the API call with extended timeouts for long-running requests
-        # Increased max-time to 45 minutes (2700 seconds) to handle very large repositories
-        # --max-time: Maximum time for the entire operation (45 minutes)
-        # --connect-timeout: Maximum time for connection establishment (60 seconds)
-        # --keepalive-time: Send keepalive probes every 60 seconds (if supported)
-        # --no-buffer: Disable output buffering to show progress
+        # Make the API call to create job
         response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" \
-          --max-time 2700 \
-          --connect-timeout 60 \
-          --keepalive-time 60 \
-          --no-buffer \
-          "$ENDPOINT_URL?url=$REPO_URL&source_branch=$SOURCE_BRANCH&target_branch=$TARGET_BRANCH&output_format=$OUTPUT_FORMAT")
+          -X POST \
+          -H "Content-Type: application/json" \
+          -d "$JSON_PAYLOAD" \
+          --max-time 60 \
+          --connect-timeout 30 \
+          "$CREATE_JOB_URL")
         curl_exit_code=$?
-        
-        # Stop the progress indicator
-        kill $PROGRESS_PID 2>/dev/null || true
         
         http_code=${response: -3}
         
-        echo "✅ API request completed!"
+        echo "✅ Job creation request completed!"
         echo "📋 Response status code: $http_code"
         echo "🔧 Curl exit code: $curl_exit_code"
         
-        # Handle timeout specifically
-        if [ $curl_exit_code -eq 28 ]; then
-          echo "❌ Error: Request timed out after 45 minutes"
-          echo "🏗️  The repository analysis is taking longer than expected."
-          echo "📊 This might be due to:"
-          echo "   • Very large repository size (>10k files)"
-          echo "   • Complex codebase requiring extensive analysis"
-          echo "   • Server load or processing delays"
-          echo "   • Network connectivity issues"
-          echo ""
-          echo "💡 Suggestions:"
-          echo "   • Try again later when server load might be lower"
-          echo "   • Consider analyzing smaller branches or specific directories"
-          echo "   • Increase your GitHub Actions job timeout-minutes to 90+"
-          echo "   • Contact support if the issue persists"
-          rm -f "$TEMP_FILE"
-          exit 1
-        fi
-        
-        # Handle other curl errors
+        # Handle curl errors
         if [ $curl_exit_code -ne 0 ]; then
           echo "❌ Error: Curl failed with exit code $curl_exit_code"
           case $curl_exit_code in
             6) echo "🌐 Couldn't resolve host - check network connectivity" ;;
             7) echo "🔌 Failed to connect to host - server might be down" ;;
-            56) echo "📡 Failure in receiving network data - connection interrupted" ;;
+            28) echo "⏰ Request timed out - server might be busy" ;;
             *) echo "❓ Unknown curl error - check network and server status" ;;
           esac
           rm -f "$TEMP_FILE"
           exit 1
         fi
         
-        if [ "$http_code" = "404" ]; then
-          echo "ℹ️  No documentation files were generated for this repository/branch combination."
-          echo "📝 This might be because:"
-          echo "   • No changes were detected between the source and target branches"
-          echo "   • The repository or branches don't exist or are not accessible"
-          echo "   • No analyzable code files were found"
-          echo "   • The branches are identical (no diff to analyze)"
-          
-          # Check if response contains error details
-          if jq -e '.detail' "$TEMP_FILE" > /dev/null 2>&1; then
-            echo "🔍 Server message: $(jq -r '.detail' "$TEMP_FILE")"
-          else
-            echo "📄 Server response:"
-            cat "$TEMP_FILE"
-          fi
-          
-          # Create empty response for graceful handling
-          echo '{"files": {}}' > "$TEMP_FILE"
-          echo "response_file=$TEMP_FILE" >> $GITHUB_OUTPUT
-          exit 0
-        elif [ "$http_code" != "200" ]; then
-          echo "❌ Error: API call failed with status code $http_code"
+        if [ "$http_code" != "202" ]; then
+          echo "❌ Error: Job creation failed with status code $http_code"
           echo "📄 Response content:"
           cat "$TEMP_FILE"
           
@@ -211,8 +157,149 @@ runs:
           exit 1
         fi
         
-        echo "✅ API call successful - documentation generated!"
-        echo "response_file=$TEMP_FILE" >> $GITHUB_OUTPUT
+        # Extract job_id from response
+        JOB_ID=$(jq -r '.job_id' "$TEMP_FILE")
+        
+        if [ "$JOB_ID" = "null" ] || [ -z "$JOB_ID" ]; then
+          echo "❌ Error: No job_id found in response"
+          echo "📄 Response content:"
+          cat "$TEMP_FILE"
+          rm -f "$TEMP_FILE"
+          exit 1
+        fi
+        
+        echo "✅ Job created successfully!"
+        echo "🆔 Job ID: $JOB_ID"
+        
+        # Clean up temporary file
+        rm -f "$TEMP_FILE"
+        
+        # Set output
+        echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
+
+    - name: Poll job status and fetch results
+      id: fetch-docs
+      timeout-minutes: 90
+      shell: bash
+      run: |
+        JOB_ID="${{ steps.create-job.outputs.job_id }}"
+        STATUS_URL="https://server.codeboarding.org/github_action/jobs/$JOB_ID"
+        
+        echo "� Starting job status polling..."
+        echo "🆔 Job ID: $JOB_ID"
+        echo "⏰ This may take 15-45 minutes for large repositories..."
+        echo "💡 If your workflow times out, increase 'timeout-minutes' in your job configuration"
+        
+        # Create temporary file for response
+        TEMP_FILE=$(mktemp)
+        
+        # Polling loop
+        POLL_COUNT=0
+        MAX_POLLS=90  # 90 minutes max (90 * 1 minute intervals)
+        
+        while [ $POLL_COUNT -lt $MAX_POLLS ]; do
+          POLL_COUNT=$((POLL_COUNT + 1))
+          
+          echo "🔍 Polling attempt $POLL_COUNT of $MAX_POLLS ($(date '+%H:%M:%S'))"
+          
+          # Make status check API call
+          response=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" \
+            --max-time 30 \
+            --connect-timeout 10 \
+            "$STATUS_URL")
+          curl_exit_code=$?
+          
+          http_code=${response: -3}
+          
+          # Handle curl errors
+          if [ $curl_exit_code -ne 0 ]; then
+            echo "⚠️  Warning: Status check failed with curl exit code $curl_exit_code"
+            echo "🔄 Retrying in 60 seconds..."
+            sleep 60
+            continue
+          fi
+          
+          if [ "$http_code" != "200" ]; then
+            echo "⚠️  Warning: Status check failed with HTTP code $http_code"
+            echo "📄 Response content:"
+            cat "$TEMP_FILE"
+            echo "🔄 Retrying in 60 seconds..."
+            sleep 60
+            continue
+          fi
+          
+          # Check if response is valid JSON
+          if ! jq empty "$TEMP_FILE" 2>/dev/null; then
+            echo "⚠️  Warning: Invalid JSON response"
+            echo "📄 Response content:"
+            cat "$TEMP_FILE"
+            echo "� Retrying in 60 seconds..."
+            sleep 60
+            continue
+          fi
+          
+          # Extract status from response
+          STATUS=$(jq -r '.status' "$TEMP_FILE")
+          
+          echo "📊 Current job status: $STATUS"
+          
+          if [ "$STATUS" = "COMPLETED" ]; then
+            echo "✅ Job completed successfully!"
+            
+            # Check if result field exists
+            if jq -e '.result' "$TEMP_FILE" > /dev/null; then
+              echo "� Result found, extracting files..."
+              
+              # Extract the result field and save as the final response
+              jq '.result' "$TEMP_FILE" > "${TEMP_FILE}_result"
+              mv "${TEMP_FILE}_result" "$TEMP_FILE"
+              
+              echo "response_file=$TEMP_FILE" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              echo "❌ Error: Job completed but no result field found"
+              echo "📄 Response content:"
+              cat "$TEMP_FILE"
+              rm -f "$TEMP_FILE"
+              exit 1
+            fi
+          elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "ERROR" ]; then
+            echo "❌ Job failed with status: $STATUS"
+            echo "📄 Response content:"
+            cat "$TEMP_FILE"
+            rm -f "$TEMP_FILE"
+            exit 1
+          else
+            # Job still in progress
+            echo "⏳ Job in progress (status: $STATUS)..."
+            
+            # Show additional progress information if available
+            if jq -e '.updated_at' "$TEMP_FILE" > /dev/null; then
+              UPDATED_AT=$(jq -r '.updated_at' "$TEMP_FILE")
+              echo "🕐 Last updated: $UPDATED_AT"
+            fi
+            
+            echo "💤 Waiting 60 seconds before next check..."
+            sleep 60
+          fi
+        done
+        
+        # If we reach here, we've exceeded max polls
+        echo "❌ Error: Job polling timed out after $MAX_POLLS attempts"
+        echo "🏗️  The repository analysis is taking longer than expected."
+        echo "� This might be due to:"
+        echo "   • Very large repository size (>10k files)"
+        echo "   • Complex codebase requiring extensive analysis"
+        echo "   • Server load or processing delays"
+        echo ""
+        echo "💡 Suggestions:"
+        echo "   • Try again later when server load might be lower"
+        echo "   • Consider analyzing smaller branches or specific directories"
+        echo "   • Increase your GitHub Actions job timeout-minutes to 120+"
+        echo "   • Contact support if the issue persists"
+        
+        rm -f "$TEMP_FILE"
+        exit 1
 
     - name: Process documentation files
       id: process-docs
@@ -247,48 +334,58 @@ runs:
         echo "Response JSON structure:"
         jq . "$RESPONSE_FILE"
         echo "Using output format: $OUTPUT_FORMAT"
-        
-        # Parse JSON response and create files using keys as filenames
+          # Parse JSON response and create files using keys as filenames
         if jq -e '.files' "$RESPONSE_FILE" > /dev/null; then
           echo "Files key found, proceeding to create files..."
           
-          # Get each key from files object and create a file with that name
-          while IFS= read -r filename; do
-            echo "Processing file: $filename"
-            
-            # Get the content for this filename
-            content=$(jq -r ".files[\"$filename\"]" "$RESPONSE_FILE")
-            
-            # Determine file type and destination
-            if [[ "$filename" == *.json ]]; then
-              # JSON file
-              output_dir="$JSON_OUTPUT_DIR"
-              output_filename="$filename"
-              echo "$content" > "$output_dir/$output_filename"
-              echo "Created JSON file: $output_dir/$output_filename"
-              JSON_FILES_CREATED=$((JSON_FILES_CREATED + 1))
-            else
-              # Documentation file - add appropriate extension if not present
-              output_dir="$MD_OUTPUT_DIR"
+          # Check if files object is empty
+          FILES_COUNT=$(jq '.files | length' "$RESPONSE_FILE")
+          if [ "$FILES_COUNT" -eq 0 ]; then
+            echo "ℹ️  No documentation files were generated for this repository/branch combination."
+            echo "📝 This might be because:"
+            echo "   • No changes were detected between the source and target branches"
+            echo "   • The repository or branches don't exist or are not accessible"
+            echo "   • No analyzable code files were found"
+            echo "   • The branches are identical (no diff to analyze)"
+          else
+            # Get each key from files object and create a file with that name
+            while IFS= read -r filename; do
+              echo "Processing file: $filename"
               
-              # Check if filename has an extension
-              if [[ "$filename" == *.* ]]; then
-                # Extract basename without extension
-                basename="${filename%.*}"
+              # Get the content for this filename
+              content=$(jq -r ".files[\"$filename\"]" "$RESPONSE_FILE")
+              
+              # Determine file type and destination
+              if [[ "$filename" == *.json ]]; then
+                # JSON file
+                output_dir="$JSON_OUTPUT_DIR"
+                output_filename="$filename"
+                echo "$content" > "$output_dir/$output_filename"
+                echo "Created JSON file: $output_dir/$output_filename"
+                JSON_FILES_CREATED=$((JSON_FILES_CREATED + 1))
               else
-                basename="$filename"
+                # Documentation file - add appropriate extension if not present
+                output_dir="$MD_OUTPUT_DIR"
+                
+                # Check if filename has an extension
+                if [[ "$filename" == *.* ]]; then
+                  # Extract basename without extension
+                  basename="${filename%.*}"
+                else
+                  basename="$filename"
+                fi
+                
+                # Add the selected output format extension
+                output_filename="${basename}${OUTPUT_FORMAT}"
+                
+                echo "$content" > "$output_dir/$output_filename"
+                echo "Created documentation file: $output_dir/$output_filename"
+                MARKDOWN_FILES_CREATED=$((MARKDOWN_FILES_CREATED + 1))
               fi
-              
-              # Add the selected output format extension
-              output_filename="${basename}${OUTPUT_FORMAT}"
-              
-              echo "$content" > "$output_dir/$output_filename"
-              echo "Created documentation file: $output_dir/$output_filename"
-              MARKDOWN_FILES_CREATED=$((MARKDOWN_FILES_CREATED + 1))
-            fi
-          done < <(jq -r '.files | keys[]' "$RESPONSE_FILE")
+            done < <(jq -r '.files | keys[]' "$RESPONSE_FILE")
+          fi
         else
-          echo "No 'files' key found in response JSON"
+          echo "No 'files' key found in response JSON - checking if job completed with no results"
         fi
         
         # Clean up temporary file
