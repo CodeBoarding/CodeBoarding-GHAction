@@ -92,6 +92,7 @@ runs:
           --arg url "$REPO_URL" \
           --arg source_branch "$SOURCE_BRANCH" \
           --arg target_branch "$TARGET_BRANCH" \
+          --arg output_directory "$OUTPUT_DIRECTORY" \
           --arg extension "$OUTPUT_FORMAT" \
           '{
             url: $url,
