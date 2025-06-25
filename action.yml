@@ -78,6 +78,7 @@ runs:
         REPO_URL="${{ steps.repo-url.outputs.repo_url }}"
         SOURCE_BRANCH="${{ inputs.source_branch }}"
         TARGET_BRANCH="${{ inputs.target_branch }}"
+        OUTPUT_DIRECTORY="${{ inputs.output_directory }}"
         OUTPUT_FORMAT="${{ inputs.output_format }}"
         
         echo "🚀 Creating CodeBoarding analysis job...$CREATE_JOB_URL"
@@ -96,6 +97,7 @@ runs:
             url: $url,
             source_branch: $source_branch,
             target_branch: $target_branch,
+            output_directory: $output_directory,
             extension: $extension
           }')
         
