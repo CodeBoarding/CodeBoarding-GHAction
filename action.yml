@@ -68,8 +68,10 @@ runs:
           REPO_URL="${{ github.server_url }}/${{ github.repository }}"
           echo "Using GitHub context URL: $REPO_URL"
         fi
-        echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT    - name: Create documentation job
-      id: create-job
+        echo "repo_url=$REPO_URL" >> $GITHUB_OUTPUT
+
+    - name: Create and poll documentation job
+      id: fetch-docs
       shell: bash
       run: |
         CREATE_JOB_URL="https://server.codeboarding.org/github_action/jobs"
@@ -171,27 +173,12 @@ runs:
         echo "✅ Job created successfully!"
         echo "🆔 Job ID: $JOB_ID"
         
-        # Clean up temporary file
-        rm -f "$TEMP_FILE"
-        
-        # Set output
-        echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
-
-    - name: Poll job status and fetch results
-      id: fetch-docs
-      timeout-minutes: 90
-      shell: bash
-      run: |
-        JOB_ID="${{ steps.create-job.outputs.job_id }}"
+        # Start polling job status
         STATUS_URL="https://server.codeboarding.org/github_action/jobs/$JOB_ID"
         
-        echo "� Starting job status polling..."
-        echo "🆔 Job ID: $JOB_ID"
+        echo "📊 Starting job status polling..."
         echo "⏰ This may take 15-45 minutes for large repositories..."
         echo "💡 If your workflow times out, increase 'timeout-minutes' in your job configuration"
-        
-        # Create temporary file for response
-        TEMP_FILE=$(mktemp)
         
         # Polling loop
         POLL_COUNT=0
@@ -207,8 +194,9 @@ runs:
             --max-time 30 \
             --connect-timeout 10 \
             "$STATUS_URL")
-          curl_exit_code=$?
           
+          # Handle polling response
+          curl_exit_code=$?
           http_code=${response: -3}
           
           # Handle curl errors
@@ -255,7 +243,7 @@ runs:
               mv "${TEMP_FILE}_result" "$TEMP_FILE"
               
               echo "response_file=$TEMP_FILE" >> $GITHUB_OUTPUT
-              exit 0
+              break
             else
               echo "❌ Error: Job completed but no result field found"
               echo "📄 Response content:"
