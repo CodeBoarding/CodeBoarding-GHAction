@@ -78,7 +78,7 @@ runs:
         TARGET_BRANCH="${{ inputs.target_branch }}"
         OUTPUT_FORMAT="${{ inputs.output_format }}"
         
-        echo "🚀 Creating CodeBoarding analysis job..."
+        echo "🚀 Creating CodeBoarding analysis job...$CREATE_JOB_URL"
         echo "📊 Repository: $REPO_URL"
         echo "🌿 Source branch: $SOURCE_BRANCH"
         echo "🎯 Target branch: $TARGET_BRANCH"
