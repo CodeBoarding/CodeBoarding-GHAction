@@ -1,0 +1,71 @@
+{
+  "description": "One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.",
+  "components": [
+    {
+      "name": "GitHub Actions Platform",
+      "description": "The external infrastructure provided by GitHub that executes the workflow, manages the action's environment, and handles the flow of inputs and outputs.",
+      "referenced_source_code": []
+    },
+    {
+      "name": "Action Definition",
+      "description": "Defines the metadata, inputs, and outputs of the `CodeBoarding-GHAction`. It serves as the primary interface and contract for how the action is used within GitHub Workflows, specifying the entry point for its execution.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "action.yml",
+          "reference_file": "action.yml",
+          "reference_start_line": 1,
+          "reference_end_line": 1
+        }
+      ]
+    },
+    {
+      "name": "CodeBoarding Action Core",
+      "description": "Encapsulates the primary functional components of the action. This includes parsing and validating inputs, executing the core \"CodeBoarding\" operations (e.g., code analysis, documentation generation), and preparing results to be set as outputs.",
+      "referenced_source_code": []
+    },
+    {
+      "name": "Example Workflow",
+      "description": "A sample GitHub Workflow that demonstrates how to invoke the `CodeBoarding-GHAction` with specific inputs and how to consume its generated outputs within a larger CI/CD pipeline.",
+      "referenced_source_code": [
+        {
+          "qualified_name": ".github/workflows/example-usage.yml",
+          "reference_file": ".github/workflows/example-usage.yml",
+          "reference_start_line": 1,
+          "reference_end_line": 1
+        }
+      ]
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Interprets",
+      "src_name": "GitHub Actions Platform",
+      "dst_name": "Action Definition"
+    },
+    {
+      "relation": "Provides Environment for",
+      "src_name": "GitHub Actions Platform",
+      "dst_name": "CodeBoarding Action Core"
+    },
+    {
+      "relation": "Defines Interface for",
+      "src_name": "Action Definition",
+      "dst_name": "CodeBoarding Action Core"
+    },
+    {
+      "relation": "Produces Outputs for",
+      "src_name": "CodeBoarding Action Core",
+      "dst_name": "GitHub Actions Platform"
+    },
+    {
+      "relation": "Invokes",
+      "src_name": "Example Workflow",
+      "dst_name": "Action Definition"
+    },
+    {
+      "relation": "Consumes Outputs from",
+      "src_name": "Example Workflow",
+      "dst_name": "GitHub Actions Platform"
+    }
+  ]
+}
