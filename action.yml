@@ -237,11 +237,21 @@ runs:
             echo "✅ Job completed successfully!"
             
             # Check if result field exists and contains files
-            if jq -e '.result.files' "$TEMP_FILE" > /dev/null; then
-              echo "📦 Result with files found, preparing output..."
+            if jq -e '.result' "$TEMP_FILE" > /dev/null; then
+              echo "📦 Result field found, preparing output..."
               
-              # Extract just the result object into a new file
-              jq '.result' "$TEMP_FILE" > "${TEMP_FILE}_result"
+              # Check if result is a JSON string or already a JSON object
+              RESULT_TYPE=$(jq -r '.result | type' "$TEMP_FILE")
+              
+              if [ "$RESULT_TYPE" = "string" ]; then
+                echo "🔧 Result is a JSON string, parsing it..."
+                # Parse the JSON string in the result field
+                jq -r '.result' "$TEMP_FILE" | jq '.' > "${TEMP_FILE}_result"
+              else
+                echo "🔧 Result is already a JSON object, extracting it..."
+                # Extract the result object directly
+                jq '.result' "$TEMP_FILE" > "${TEMP_FILE}_result"
+              fi
               
               # Verify the extracted result
               if jq -e '.files' "${TEMP_FILE}_result" > /dev/null; then
@@ -257,9 +267,25 @@ runs:
                 exit 1
               fi
             else
-              echo "❌ Error: Job completed but no result.files found in response"
+              echo "❌ Error: Job completed but no result or result.files found in response"
               echo "📄 Response structure:"
               jq '.' "$TEMP_FILE"
+              
+              # If result exists, show what it contains
+              if jq -e '.result' "$TEMP_FILE" > /dev/null; then
+                echo "📄 Result field content:"
+                RESULT_TYPE=$(jq -r '.result | type' "$TEMP_FILE")
+                echo "Result type: $RESULT_TYPE"
+                
+                if [ "$RESULT_TYPE" = "string" ]; then
+                  echo "Result string content:"
+                  jq -r '.result' "$TEMP_FILE"
+                else
+                  echo "Result object content:"
+                  jq '.result' "$TEMP_FILE"
+                fi
+              fi
+              
               rm -f "$TEMP_FILE"
               exit 1
             fi
