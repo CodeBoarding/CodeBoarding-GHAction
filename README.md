@@ -304,7 +304,7 @@ With the default `github.token`, the repository or organization must allow GitHu
 | `model` | both | empty | Default model for both analysis and parsing. |
 | `agent_model` | both | empty | Analysis-only override for `model`. |
 | `parsing_model` | both | empty | Parsing-only override for `model`. |
-| `depth_level` | both | `2` | Positive integer analysis depth cap, including full-analysis fallbacks. Changing it rebuilds incompatible state. |
+| `depth_cap` | both | `2` | Positive integer maximum analysis depth, including full-analysis fallbacks. Changing it rebuilds incompatible state. |
 | `github_token` | both | `${{ github.token }}` | Token for comments and sync delivery. |
 | `sync_strategy` | sync | `push` | `push` or `pull_request`. |
 | `target_branch` | sync | event branch | Branch receiving the baseline or rolling PR. |
@@ -319,10 +319,17 @@ seeds an incremental analysis of the PR head and publishes both states. Later
 runs prefer compatible prior PR state for incremental updates, while the review
 still compares the merge base with the current head.
 
-Set `depth_level` in the action's `with:` block (for example, `depth_level: 4`).
+Set `depth_cap` in the action's `with:` block (for example, `depth_cap: 4`).
 This configuration is authoritative: stored `metadata.depth_cap` is checked for
 compatibility, not inherited, and legacy `metadata.depth_level` is not used as a
 fallback. Missing or incompatible baseline depth triggers a rebuild.
+
+`metadata.depth_cap` records the configured maximum; `metadata.depth_level`
+records the depth actually reached, which can be shallower. Comparing the cap
+avoids rejecting valid state or reducing future rebuild depth when a run stops
+early. The action input matches the metadata name. Only the engine CLI boundary
+still uses `--depth-level`, Core's existing flag for the cap. Historical workflows
+using the removed `depth_level` action input should switch to `depth_cap`.
 
 ## Outputs
 

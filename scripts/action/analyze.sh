@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Runs incremental/full Core analysis and outputs the selected analysis paths and mode.
 set -euo pipefail
-DEPTH_LEVEL="${DEPTH_LEVEL:-2}"
-if [[ ! "$DEPTH_LEVEL" =~ ^[1-9][0-9]*$ ]]; then
-  echo "::error::depth_level must be a positive integer."
+DEPTH_CAP="${DEPTH_CAP:-2}"
+if [[ ! "$DEPTH_CAP" =~ ^[1-9][0-9]*$ ]]; then
+  echo "::error::depth_cap must be a positive integer."
   exit 1
 fi
 parse_output() {
@@ -24,6 +24,7 @@ incremental() {
 }
 full() {
   local checkout="$1" output_dir="$2" depth="$3" output
+  # Core's CLI calls the configured cap --depth-level; metadata stores depth_cap.
   output="$(python3 "$ACTION_PATH/scripts/analyze_repository.py" full \
     --checkout "$checkout" --output-dir "$output_dir" --depth-level "$depth")"
   parse_output "$output"
@@ -124,12 +125,12 @@ analyze_sync() {
   rm -rf "$work"
   seed_state "$CHECKOUT_DIR" "$state"
 
-  if [ "${FORCE_FULL,,}" = true ] || [ "$(depth_cap_from "$state/analysis.json")" != "$DEPTH_LEVEL" ]; then
-    full "$CHECKOUT_DIR" "$state" "$DEPTH_LEVEL"
+  if [ "${FORCE_FULL,,}" = true ] || [ "$(depth_cap_from "$state/analysis.json")" != "$DEPTH_CAP" ]; then
+    full "$CHECKOUT_DIR" "$state" "$DEPTH_CAP"
   else
     incremental "$CHECKOUT_DIR" "$state"
     if [ "$REQUIRES_FULL" = true ]; then
-      full "$CHECKOUT_DIR" "$state" "$DEPTH_LEVEL"
+      full "$CHECKOUT_DIR" "$state" "$DEPTH_CAP"
     fi
   fi
   # Sync already computes the graph every review of this branch compares against,
@@ -153,7 +154,7 @@ warmstart_usable() {
   local base_analysis="$1" bundle_cap
   [ -f "${WARMSTART_DIR:-}/analysis.json" ] || return 1
   bundle_cap="$(depth_cap_from "$WARMSTART_DIR/analysis.json")"
-  if [ "$bundle_cap" != "$DEPTH_LEVEL" ]; then
+  if [ "$bundle_cap" != "$DEPTH_CAP" ]; then
     echo "::notice::Analysis depth changed since the last run; re-seeding from the base analysis."
     return 1
   fi
@@ -176,7 +177,7 @@ analyze_review() {
   # needs no engine run at all. Without one, the merge base is checked out and
   # analyzed from whatever baseline the repository committed there.
   local base_source=published
-  if [ "$(depth_cap_from "${BASE_DIR:-}/analysis.json")" = "$DEPTH_LEVEL" ]; then
+  if [ "$(depth_cap_from "${BASE_DIR:-}/analysis.json")" = "$DEPTH_CAP" ]; then
     mkdir -p "$base_state"
     cp -a "$BASE_DIR/." "$base_state/"
   else
@@ -185,11 +186,11 @@ analyze_review() {
     git -C "$CHECKOUT_DIR" worktree add --detach "$base_checkout" "$REVIEW_BASE_SHA" >/dev/null
     seed_state "$base_checkout" "$base_state"
     REQUIRES_FULL=true
-    if [ "$(depth_cap_from "$base_state/analysis.json")" = "$DEPTH_LEVEL" ]; then
+    if [ "$(depth_cap_from "$base_state/analysis.json")" = "$DEPTH_CAP" ]; then
       incremental "$base_checkout" "$base_state"
     fi
     if [ "$REQUIRES_FULL" = true ]; then
-      full "$base_checkout" "$base_state" "$DEPTH_LEVEL"
+      full "$base_checkout" "$base_state" "$DEPTH_CAP"
     fi
   fi
   unset GIT_TOKEN
@@ -215,7 +216,7 @@ analyze_review() {
 
   incremental "$CHECKOUT_DIR" "$head_state"
   if [ "$REQUIRES_FULL" = true ]; then
-    full "$CHECKOUT_DIR" "$head_state" "$DEPTH_LEVEL"
+    full "$CHECKOUT_DIR" "$head_state" "$DEPTH_CAP"
   fi
 
   write_origin "$head_state" "$seed_source" "$chain_depth" "$(analysis_digest "$base_analysis")"

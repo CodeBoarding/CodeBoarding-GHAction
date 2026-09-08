@@ -63,11 +63,12 @@ class ActionInputTests(unittest.TestCase):
         self.assertNotIn("default:", block)
 
     def test_depth_is_wired_to_state_identity_and_both_analysis_modes(self) -> None:
-        self.assertIn("default: '2'", self.inputs["depth_level"])
+        self.assertIn("default: '2'", self.inputs["depth_cap"])
+        self.assertNotIn("depth_level", self.inputs)
         for identifier in ("id: state", "id: sync_analyze", "id: review_analyze"):
             start = ACTION.index(identifier)
             block = ACTION[start : ACTION.index("\n      run:", start)]
-            self.assertIn("DEPTH_LEVEL: ${{ inputs.depth_level }}", block)
+            self.assertIn("DEPTH_CAP: ${{ inputs.depth_cap }}", block)
 
     def test_the_inferred_credential_inputs_are_gone(self) -> None:
         """`llm_api_key`/`llm_provider` are what made a fallback expressible at all."""

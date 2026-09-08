@@ -134,7 +134,7 @@ class CacheKeyTests(unittest.TestCase):
     def test_model_selection_changes_the_identity(self) -> None:
         baseline = self._run()
 
-        self.assertNotEqual(baseline["cfg_hash"], self._run(DEPTH_LEVEL="4")["cfg_hash"])
+        self.assertNotEqual(baseline["cfg_hash"], self._run(DEPTH_CAP="4")["cfg_hash"])
         self.assertNotEqual(baseline["cfg_hash"], self._run(MODEL="gpt-5")["cfg_hash"])
         self.assertNotEqual(baseline["cfg_hash"], self._run(AGENT_MODEL_INPUT="gpt-5")["cfg_hash"])
         self.assertNotEqual(baseline["cfg_hash"], self._run(PARSING_MODEL_INPUT="gpt-5")["cfg_hash"])
@@ -271,7 +271,7 @@ class ReviewChainTests(unittest.TestCase):
 
     def test_missing_baseline_runs_full_then_incremental_at_configured_depth(self) -> None:
         sha = self._commit_base()
-        values = self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4")
+        values = self._analyze(REVIEW_BASE_SHA=sha, DEPTH_CAP="4")
         calls = self._engine_calls()
         self.assertEqual([c["mode"] for c in calls], ["full", "incremental"])
         self.assertEqual(calls[0]["depth"], "4")
@@ -283,31 +283,31 @@ class ReviewChainTests(unittest.TestCase):
 
     def test_compatible_committed_baseline_runs_incrementally(self) -> None:
         sha = self._commit_base(cap=4)
-        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4")
+        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_CAP="4")
         self.assertEqual([c["mode"] for c in self._engine_calls()], ["incremental", "incremental"])
 
     def test_legacy_committed_depth_is_not_inherited(self) -> None:
         sha = self._commit_base(legacy=True)
-        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4")
+        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_CAP="4")
         self.assertEqual([c["mode"] for c in self._engine_calls()], ["full", "incremental"])
         self.assertEqual(self._engine_calls()[0]["depth"], "4")
 
     def test_changed_configuration_rebuilds_the_base(self) -> None:
         sha = self._commit_base(cap=2)
         _state(self.base_dir, cap=2)
-        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4")
+        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_CAP="4")
         self.assertEqual([c["mode"] for c in self._engine_calls()], ["full", "incremental"])
         self.assertEqual(self._engine_calls()[0]["depth"], "4")
 
     def test_head_full_fallback_uses_configured_cap(self) -> None:
         _state(self.base_dir, depth=1, cap=4)
-        self._analyze(DEPTH_LEVEL="4", CB_REQUIRE_FULL="true")
+        self._analyze(DEPTH_CAP="4", CB_REQUIRE_FULL="true")
         self.assertEqual([c["mode"] for c in self._engine_calls()], ["incremental", "full"])
         self.assertEqual(self._engine_calls()[1]["depth"], "4")
 
     def test_base_and_head_fallbacks_keep_configured_depth(self) -> None:
         sha = self._commit_base(cap=4)
-        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4", CB_REQUIRE_FULL="true")
+        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_CAP="4", CB_REQUIRE_FULL="true")
         calls = self._engine_calls()
         self.assertEqual([c["mode"] for c in calls], ["incremental", "full", "incremental", "full"])
         self.assertEqual([c["depth"] for c in calls if c["mode"] == "full"], ["4", "4"])
@@ -315,16 +315,16 @@ class ReviewChainTests(unittest.TestCase):
     def test_invalid_depth_fails_before_analysis(self) -> None:
         result = subprocess.run(
             [str(ANALYZE)],
-            env={"PATH": os.environ["PATH"], "DEPTH_LEVEL": "-1"},
+            env={"PATH": os.environ["PATH"], "DEPTH_CAP": "-1"},
             capture_output=True,
             text=True,
         )
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("depth_level must be a positive integer", result.stdout)
+        self.assertIn("depth_cap must be a positive integer", result.stdout)
         self.assertEqual(self._engine_calls(), [])
 
     def test_sync_without_baseline_uses_configured_depth_directly(self) -> None:
-        self._analyze(ANALYSIS_KIND="sync", FORCE_FULL="false", DEPTH_LEVEL="4")
+        self._analyze(ANALYSIS_KIND="sync", FORCE_FULL="false", DEPTH_CAP="4")
         self.assertEqual([c["mode"] for c in self._engine_calls()], ["full"])
         self.assertEqual(self._engine_calls()[0]["depth"], "4")
 

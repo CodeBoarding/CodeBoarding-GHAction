@@ -125,7 +125,7 @@ inputs:
     description: 'Optional parsing-model override. Takes precedence over model.'
     required: false
     default: ''
-  depth_level:
+  depth_cap:
     description: 'Positive integer analysis depth cap, used for both review and sync, including full fallbacks.'
     required: false
     default: '2'
@@ -386,7 +386,7 @@ runs:
         IS_FORK: ${{ steps.guard.outputs.is_fork }}
         LLM_PROVIDER: ${{ steps.llm.outputs.provider }}
         BACKEND_ID: ${{ steps.llm.outputs.backend_id }}
-        DEPTH_LEVEL: ${{ inputs.depth_level }}
+        DEPTH_CAP: ${{ inputs.depth_cap }}
         MODEL: ${{ inputs.model }}
         AGENT_MODEL_INPUT: ${{ inputs.agent_model }}
         PARSING_MODEL_INPUT: ${{ inputs.parsing_model }}
@@ -435,7 +435,7 @@ runs:
         CHECKOUT_DIR: ${{ github.workspace }}/.codeboarding-target
         STAGE_DIR: ${{ runner.temp }}/cb-state/${{ github.action }}/out
         FORCE_FULL: ${{ inputs.force_full }}
-        DEPTH_LEVEL: ${{ inputs.depth_level }}
+        DEPTH_CAP: ${{ inputs.depth_cap }}
         MODEL: ${{ inputs.model }}
         AGENT_MODEL_INPUT: ${{ inputs.agent_model }}
         PARSING_MODEL_INPUT: ${{ inputs.parsing_model }}
@@ -527,7 +527,7 @@ runs:
         CFG_HASH: ${{ steps.state.outputs.cfg_hash }}
         GIT_TOKEN: ${{ inputs.github_token }}
         GITHUB_SERVER_URL: ${{ github.server_url }}
-        DEPTH_LEVEL: ${{ inputs.depth_level }}
+        DEPTH_CAP: ${{ inputs.depth_cap }}
         MODEL: ${{ inputs.model }}
         AGENT_MODEL_INPUT: ${{ inputs.agent_model }}
         PARSING_MODEL_INPUT: ${{ inputs.parsing_model }}
