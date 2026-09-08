@@ -9,14 +9,10 @@ inputs:
     description: 'review posts a PR architecture diff; sync updates the versioned analysis baseline.'
     required: false
     default: 'review'
-  run_on_pull_requests:
-    description: 'Run automatic reviews for non-draft pull requests.'
+  pull_request_states:
+    description: 'Comma-separated pull request states to review automatically: ready and/or draft; empty disables automatic PR reviews.'
     required: false
-    default: 'true'
-  run_on_draft_pull_requests:
-    description: 'Run automatic reviews for draft pull requests.'
-    required: false
-    default: 'true'
+    default: 'ready,draft'
   llm:
     description: 'Required. Where analysis credentials come from: hosted, license, or a provider name (anthropic, aws_bedrock, cerebras, deepseek, glm, google, kimi, litellm, ollama, openai, openrouter, orcarouter, vercel).'
     required: true
@@ -209,8 +205,7 @@ runs:
         GH_HOST: ${{ github.server_url }}
         MODE: ${{ inputs.mode }}
         EVENT: ${{ github.event_name }}
-        RUN_ON_PULL_REQUESTS: ${{ inputs.run_on_pull_requests }}
-        RUN_ON_DRAFT_PULL_REQUESTS: ${{ inputs.run_on_draft_pull_requests }}
+        PULL_REQUEST_STATES: ${{ inputs.pull_request_states }}
         REF_NAME: ${{ github.ref_name }}
         REF_TYPE: ${{ github.ref_type }}
         EVENT_SHA: ${{ github.sha }}

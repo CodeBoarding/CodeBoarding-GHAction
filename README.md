@@ -63,11 +63,10 @@ By default, automatic reviews run for both non-draft and draft pull requests. Th
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
           llm: hosted
-          run_on_pull_requests: true
-          run_on_draft_pull_requests: false   # review only non-draft PRs
+          pull_request_states: 'ready'   # review only non-draft PRs
 ```
 
-Set `run_on_pull_requests: false` and `run_on_draft_pull_requests: true` to review only drafts. Set both to `false` to disable automatic PR-event reviews while retaining trusted `/codeboarding` commands. Keep the PR-state check out of the job-level `if:` expression so the action can apply these inputs. Include `ready_for_review` and `converted_to_draft` in `pull_request.types` if changing either state should trigger a review immediately.
+Set `pull_request_states: 'draft'` to review only drafts, or `pull_request_states: ''` to disable automatic PR-event reviews while retaining trusted `/codeboarding` commands. The default, `'ready,draft'`, reviews both states. Values are comma-separated; surrounding whitespace is ignored, and unknown values fail the run rather than silently changing which pull requests are reviewed. Keep the PR-state check out of the job-level `if:` expression so the action can apply this input. Include `ready_for_review` and `converted_to_draft` in `pull_request.types` if changing either state should trigger a review immediately.
 
 `synchronize` re-runs the review on every push to the branch. Each of those runs covers only the commits pushed since the previous one, so a push costs a fraction of a first analysis — and a pushed commit is the only thing that builds the reusable analysis, since GitHub gives comment-triggered runs a read-only cache. Drop `synchronize` from the list if you would rather spend one analysis per pull request than one per push.
 
@@ -308,8 +307,7 @@ With the default `github.token`, the repository or organization must allow GitHu
 | Input | Mode | Default | Description |
 |---|---|---|---|
 | `mode` | both | `review` | `review` or `sync`. |
-| `run_on_pull_requests` | review | `true` | Run automatic reviews for non-draft PR events. |
-| `run_on_draft_pull_requests` | review | `true` | Run automatic reviews for draft PR events. |
+| `pull_request_states` | review | `ready,draft` | Comma-separated automatic-review states: `ready`, `draft`, both, or empty for neither. |
 | `llm` | both | **required** | `hosted`, `license`, or a provider name. No default. |
 | `<provider>_api_key` | both | empty | That provider's key, e.g. `anthropic_api_key`. See [Providers](#providers). |
 | `<provider>_base_url` | both | empty | That provider's endpoint, where it has one. |

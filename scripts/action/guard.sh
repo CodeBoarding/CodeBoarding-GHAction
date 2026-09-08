@@ -42,20 +42,25 @@ fi
 
 case "$EVENT" in
   pull_request|pull_request_target)
-    run_on_pull_requests="${RUN_ON_PULL_REQUESTS:-true}"
-    run_on_draft_pull_requests="${RUN_ON_DRAFT_PULL_REQUESTS:-true}"
-    case "${run_on_pull_requests,,}" in
-      true|false) ;;
-      *) fail "run_on_pull_requests must be true or false." ;;
-    esac
-    case "${run_on_draft_pull_requests,,}" in
-      true|false) ;;
-      *) fail "run_on_draft_pull_requests must be true or false." ;;
-    esac
+    pull_request_states="${PULL_REQUEST_STATES-ready,draft}"
+    review_ready=false
+    review_draft=false
+    if [ -n "$pull_request_states" ]; then
+      IFS=',' read -ra states <<< "$pull_request_states"
+      for state in "${states[@]}"; do
+        state="${state#"${state%%[![:space:]]*}"}"
+        state="${state%"${state##*[![:space:]]}"}"
+        case "$state" in
+          ready) review_ready=true ;;
+          draft) review_draft=true ;;
+          *) fail "pull_request_states must contain only ready and draft." ;;
+        esac
+      done
+    fi
     if [ "${PULL_IS_DRAFT:-false}" = true ]; then
-      [ "${run_on_draft_pull_requests,,}" = true ] || skip "Automatic reviews are disabled for draft pull requests."
+      [ "$review_draft" = true ] || skip "Automatic reviews are disabled for draft pull requests."
     else
-      [ "${run_on_pull_requests,,}" = true ] || skip "Automatic reviews are disabled for non-draft pull requests."
+      [ "$review_ready" = true ] || skip "Automatic reviews are disabled for ready pull requests."
     fi
     pr_number="$EVENT_PR_NUMBER"
     base_sha="$PULL_BASE_SHA"
