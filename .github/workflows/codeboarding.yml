@@ -2,11 +2,10 @@ name: CodeBoarding review
 
 on:
   pull_request:
-    # Generate when the PR opens or changes draft state. Reusing this PR's
-    # previous analysis makes `synchronize` a reasonable addition if per-push
-    # updates are wanted; /codeboarding still refreshes on demand. 'closed'
-    # only cancels an in-flight review (see concurrency), it doesn't start one.
-    types: [opened, reopened, ready_for_review, converted_to_draft, closed]
+    # Analyze when the PR opens or receives a commit, whether it is ready or draft.
+    # Changing only the draft state does not rerun analysis. 'closed' only cancels
+    # an in-flight review (see concurrency), it doesn't start one.
+    types: [opened, reopened, closed, synchronize]
   issue_comment:
     types: [created]
 

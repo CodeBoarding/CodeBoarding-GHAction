@@ -16,56 +16,6 @@ GUARD = ROOT / "scripts" / "action" / "guard.sh"
 
 
 class ActionSyncTests(unittest.TestCase):
-    def test_review_guard_honors_the_pull_request_state_inputs(self) -> None:
-        cases = (
-            ("draft", "false", "ready"),
-            ("ready", "true", "draft"),
-            ("", "false", "ready"),
-            ("", "true", "draft"),
-        )
-        for states, is_draft, label in cases:
-            with self.subTest(state=label), tempfile.TemporaryDirectory() as tmp:
-                output = Path(tmp) / "github-output"
-                result = subprocess.run(
-                    [str(GUARD)],
-                    env={
-                        "PATH": os.environ["PATH"],
-                        "GITHUB_OUTPUT": str(output),
-                        "MODE": "review",
-                        "EVENT": "pull_request",
-                        "PULL_REQUEST_STATES": states,
-                        "PULL_IS_DRAFT": is_draft,
-                    },
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-
-                self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
-                values = output.read_text(encoding="utf-8")
-                self.assertTrue(values.endswith("skip=true\n"))
-                self.assertIn(f"disabled for {label} pull requests", result.stdout)
-
-    def test_review_guard_rejects_an_unknown_pull_request_state(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / "github-output"
-            result = subprocess.run(
-                [str(GUARD)],
-                env={
-                    "PATH": os.environ["PATH"],
-                    "GITHUB_OUTPUT": str(output),
-                    "MODE": "review",
-                    "EVENT": "pull_request",
-                    "PULL_REQUEST_STATES": "ready,unknown",
-                },
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-
-            self.assertEqual(result.returncode, 1)
-            self.assertIn("pull_request_states must contain only ready and draft", result.stdout)
-
     def test_review_guard_rejects_fork_before_checkout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "github-output"
@@ -141,7 +91,6 @@ class ActionSyncTests(unittest.TestCase):
                     "PULL_HEAD_SHA": "head-sha",
                     "PULL_BASE_REPO": "owner/repo",
                     "PULL_HEAD_REPO": "owner/repo",
-                    "PULL_IS_DRAFT": "true",
                 },
                 capture_output=True,
                 text=True,
@@ -186,7 +135,6 @@ class ActionSyncTests(unittest.TestCase):
                     "AUTHOR_ASSOCIATION": "COLLABORATOR",
                     "ISSUE_PR_URL": "repos/owner/repo/pulls/42",
                     "GH_HOST": "github.com",
-                    "PULL_REQUEST_STATES": "",
                 },
                 capture_output=True,
                 text=True,

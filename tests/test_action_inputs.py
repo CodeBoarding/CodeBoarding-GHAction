@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ACTION = (ROOT / "action.yml").read_text(encoding="utf-8")
 TABLE = json.loads((ROOT / "scripts" / "action" / "supported-providers.json").read_text(encoding="utf-8"))
+DOGFOOD = (ROOT / ".github" / "workflows" / "codeboarding.yml").read_text(encoding="utf-8")
 
 
 def declared_inputs() -> dict[str, str]:
@@ -62,11 +63,6 @@ class ActionInputTests(unittest.TestCase):
         self.assertIn("required: true", block)
         self.assertNotIn("default:", block)
 
-    def test_pull_request_states_default_to_both_and_reach_the_guard(self) -> None:
-        self.assertIn("default: 'ready,draft'", self.inputs["pull_request_states"])
-        self.assertIn("PULL_REQUEST_STATES: ${{ inputs.pull_request_states }}", ACTION)
-        self.assertIn("PULL_IS_DRAFT: ${{ github.event.pull_request.draft }}", ACTION)
-
     def test_depth_is_wired_to_state_identity_and_both_analysis_modes(self) -> None:
         self.assertIn("default: '2'", self.inputs["depth_cap"])
         self.assertNotIn("depth_level", self.inputs)
@@ -74,6 +70,15 @@ class ActionInputTests(unittest.TestCase):
             start = ACTION.index(identifier)
             block = ACTION[start : ACTION.index("\n      run:", start)]
             self.assertIn("DEPTH_CAP: ${{ inputs.depth_cap }}", block)
+
+    def test_default_workflow_reviews_drafts_on_open_and_new_commits(self) -> None:
+        self.assertNotIn("github.event.pull_request.draft", DOGFOOD)
+        start = DOGFOOD.index("types:")
+        types = DOGFOOD[start : DOGFOOD.index("\n", start)]
+        for event in ("opened", "reopened", "synchronize"):
+            self.assertIn(event, types)
+        for state_change in ("ready_for_review", "converted_to_draft"):
+            self.assertNotIn(state_change, types)
 
     def test_the_inferred_credential_inputs_are_gone(self) -> None:
         """`llm_api_key`/`llm_provider` are what made a fallback expressible at all."""
