@@ -95,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("mode", choices=["incremental", "full"], help="Which CLI command to invoke")
     parser.add_argument("--checkout", required=True, help="Path to repository checkout")
     parser.add_argument("--output-dir", required=True, help="Action-owned output directory")
-    parser.add_argument("--depth-level", help="Depth passed to full analyses")
+    parser.add_argument("--depth-cap", help="Maximum hierarchy depth allowed for full analyses")
 
     args = parser.parse_args(argv)
     checkout = Path(args.checkout)
@@ -112,8 +112,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"analysis_path={analysis_path or ''}")
         return 0
 
-    if not args.depth_level:
-        raise SystemExit("--depth-level is required for mode=full")
+    if not args.depth_cap:
+        raise SystemExit("--depth-cap is required for mode=full")
     shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True)
     command = [
@@ -123,8 +123,8 @@ def main(argv: list[str] | None = None) -> int:
         str(checkout),
         "--output-dir",
         str(output_dir),
-        "--depth-level",
-        args.depth_level,
+        "--depth-cap",
+        args.depth_cap,
         "--force",
     ]
     _run_command(command, output_dir)

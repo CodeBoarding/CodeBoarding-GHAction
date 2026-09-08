@@ -129,6 +129,10 @@ inputs:
     description: 'Optional parsing-model override. Takes precedence over model.'
     required: false
     default: ''
+  depth_cap:
+    description: 'Positive integer analysis depth cap, used for both review and sync, including full fallbacks.'
+    required: false
+    default: '2'
   github_token:
     description: 'Token used for comments and sync delivery.'
     required: false
@@ -359,7 +363,7 @@ runs:
       if: steps.guard.outputs.skip != 'true'
       shell: bash
       run: |
-        python -m pip install --disable-pip-version-check 'codeboarding==0.14.0'
+        python -m pip install --disable-pip-version-check 'codeboarding==0.14.1'
         # Fail here, with the reason, rather than mid-analysis with a traceback:
         # pinning a release does not pin what its dependencies resolve to. Run
         # the console script, not `python -c`, which would put the analyzed
@@ -388,6 +392,7 @@ runs:
         IS_FORK: ${{ steps.guard.outputs.is_fork }}
         LLM_PROVIDER: ${{ steps.llm.outputs.provider }}
         BACKEND_ID: ${{ steps.llm.outputs.backend_id }}
+        DEPTH_CAP: ${{ inputs.depth_cap }}
         MODEL: ${{ inputs.model }}
         AGENT_MODEL_INPUT: ${{ inputs.agent_model }}
         PARSING_MODEL_INPUT: ${{ inputs.parsing_model }}
@@ -436,6 +441,7 @@ runs:
         CHECKOUT_DIR: ${{ github.workspace }}/.codeboarding-target
         STAGE_DIR: ${{ runner.temp }}/cb-state/${{ github.action }}/out
         FORCE_FULL: ${{ inputs.force_full }}
+        DEPTH_CAP: ${{ inputs.depth_cap }}
         MODEL: ${{ inputs.model }}
         AGENT_MODEL_INPUT: ${{ inputs.agent_model }}
         PARSING_MODEL_INPUT: ${{ inputs.parsing_model }}
@@ -527,6 +533,7 @@ runs:
         CFG_HASH: ${{ steps.state.outputs.cfg_hash }}
         GIT_TOKEN: ${{ inputs.github_token }}
         GITHUB_SERVER_URL: ${{ github.server_url }}
+        DEPTH_CAP: ${{ inputs.depth_cap }}
         MODEL: ${{ inputs.model }}
         AGENT_MODEL_INPUT: ${{ inputs.agent_model }}
         PARSING_MODEL_INPUT: ${{ inputs.parsing_model }}
