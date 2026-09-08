@@ -311,7 +311,7 @@ With the default `github.token`, the repository or organization must allow GitHu
 | `force_full` | sync | `false` | Ignore the committed baseline for this run. |
 | `warmstart_retention_days` | review | `1` | Days to keep the reusable analysis. Only the next run reads it. |
 
-The `/codeboarding` command, comment heading, Mermaid direction (`LR`), hosted webview URL, rolling sync branch, commit message, and CodeBoarding 0.14.0 version are intentionally fixed rather than exposed as configuration.
+The `/codeboarding` command, comment heading, Mermaid direction (`LR`), hosted webview URL, rolling sync branch, commit message, and CodeBoarding 0.14.1 version are intentionally fixed rather than exposed as configuration.
 
 Review mode needs no sync workflow or committed `.codeboarding` directory. If no
 usable merge-base analysis exists, it runs full analysis there directly, then
@@ -331,11 +331,9 @@ early. The action input matches the metadata name and the engine receives only
 `--depth-cap`. There are no old-name input aliases. Historical workflows using
 the removed `depth_level` action input must switch to `depth_cap`.
 
-**Release blocker:** this branch requires Core PR #578's new CLI contract.
-The current 0.14.0 engine pin does not support `--depth-cap`; do not merge or
-release this action until a compatible Core release is published and both the
-engine pin and supported-provider table are updated. Earlier eShop evidence
-predates this final breaking CLI migration.
+This action pins Core 0.14.1 for the `--depth-cap` CLI contract. Publish that Core
+release before releasing the action. Earlier eShop evidence predates this final
+breaking CLI migration.
 
 ## Outputs
 
@@ -372,7 +370,7 @@ Run the local analysis pipeline:
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-...
-python -m pip install codeboarding==0.14.0
+python -m pip install codeboarding==0.14.1
 tests/run_local.sh --repo /path/to/repo --base main --head feature
 ```
 
