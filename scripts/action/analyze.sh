@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Runs incremental/full Core analysis and outputs the selected analysis paths and mode.
 set -euo pipefail
+DEPTH_LEVEL="${DEPTH_LEVEL:-2}"
+if [[ ! "$DEPTH_LEVEL" =~ ^[1-9][0-9]*$ ]]; then
+  echo "::error::depth_level must be a positive integer."
+  exit 1
+fi
 parse_output() {
   local output="$1"
   ANALYSIS_MODE="$(awk -F= '$1 == "analysis_mode" {print $2; exit}' <<< "$output")"
@@ -27,16 +32,14 @@ full() {
     exit 1
   fi
 }
-# Core resolves depth from depth_cap, falling back to depth_level for baselines
-# predating it. Use the same value everywhere: a run that stopped short of its
-# cap must not be read as a scope change, and rebuilding at the realized depth
-# would ratchet the configured depth down every time a full run happens.
+# Metadata is only a compatibility check, never the source of configuration.
+# Legacy baselines without a configured cap are rebuilt at the requested depth.
 depth_cap_from() {
   local analysis="$1"
   [ -f "$analysis" ] || return 0
   python3 -c 'import json,sys
 metadata = json.load(open(sys.argv[1])).get("metadata", {})
-print(metadata.get("depth_cap", metadata.get("depth_level", "")))' "$analysis" 2>/dev/null || true
+print(metadata.get("depth_cap", ""))' "$analysis" 2>/dev/null || true
 }
 
 seed_state() {
@@ -120,16 +123,13 @@ analyze_sync() {
   local work="$RUNNER_TEMP/codeboarding-sync" state="$RUNNER_TEMP/codeboarding-sync/analysis"
   rm -rf "$work"
   seed_state "$CHECKOUT_DIR" "$state"
-  local depth
-  depth="$(depth_cap_from "$state/analysis.json")"
-  depth="${depth:-2}"
 
-  if [ "${FORCE_FULL,,}" = true ]; then
-    full "$CHECKOUT_DIR" "$state" "$depth"
+  if [ "${FORCE_FULL,,}" = true ] || [ "$(depth_cap_from "$state/analysis.json")" != "$DEPTH_LEVEL" ]; then
+    full "$CHECKOUT_DIR" "$state" "$DEPTH_LEVEL"
   else
     incremental "$CHECKOUT_DIR" "$state"
     if [ "$REQUIRES_FULL" = true ]; then
-      full "$CHECKOUT_DIR" "$state" "$depth"
+      full "$CHECKOUT_DIR" "$state" "$DEPTH_LEVEL"
     fi
   fi
   # Sync already computes the graph every review of this branch compares against,
@@ -148,14 +148,12 @@ fetch_commit() {
     "${GITHUB_SERVER_URL%/}/${repository}.git" "$sha" --depth=1
 }
 
-# The artifact name pins the engine, the analysis scope and the models. Depth and
-# lineage are read from the bundle itself, so they are checked here.
+# The artifact name pins configuration; verify the stored cap and lineage too.
 warmstart_usable() {
-  local base_analysis="$1" bundle_cap base_cap
+  local base_analysis="$1" bundle_cap
   [ -f "${WARMSTART_DIR:-}/analysis.json" ] || return 1
   bundle_cap="$(depth_cap_from "$WARMSTART_DIR/analysis.json")"
-  base_cap="$(depth_cap_from "$base_analysis")"
-  if [ -n "$bundle_cap" ] && [ -n "$base_cap" ] && [ "$bundle_cap" != "$base_cap" ]; then
+  if [ "$bundle_cap" != "$DEPTH_LEVEL" ]; then
     echo "::notice::Analysis depth changed since the last run; re-seeding from the base analysis."
     return 1
   fi
@@ -178,7 +176,7 @@ analyze_review() {
   # needs no engine run at all. Without one, the merge base is checked out and
   # analyzed from whatever baseline the repository committed there.
   local base_source=published
-  if [ -f "${BASE_DIR:-}/analysis.json" ]; then
+  if [ "$(depth_cap_from "${BASE_DIR:-}/analysis.json")" = "$DEPTH_LEVEL" ]; then
     mkdir -p "$base_state"
     cp -a "$BASE_DIR/." "$base_state/"
   else
@@ -186,20 +184,18 @@ analyze_review() {
     fetch_commit "$REVIEW_BASE_REPO" "$REVIEW_BASE_SHA"
     git -C "$CHECKOUT_DIR" worktree add --detach "$base_checkout" "$REVIEW_BASE_SHA" >/dev/null
     seed_state "$base_checkout" "$base_state"
-    local base_depth
-    base_depth="$(depth_cap_from "$base_state/analysis.json")"
-    incremental "$base_checkout" "$base_state"
+    REQUIRES_FULL=true
+    if [ "$(depth_cap_from "$base_state/analysis.json")" = "$DEPTH_LEVEL" ]; then
+      incremental "$base_checkout" "$base_state"
+    fi
     if [ "$REQUIRES_FULL" = true ]; then
-      full "$base_checkout" "$base_state" "${base_depth:-2}"
+      full "$base_checkout" "$base_state" "$DEPTH_LEVEL"
     fi
   fi
   unset GIT_TOKEN
 
   local base_analysis="$base_state/analysis.json"
   [ -f "$base_analysis" ] || { echo "::error::Review baseline analysis is missing."; exit 1; }
-  local depth
-  depth="$(depth_cap_from "$base_analysis")"
-  depth="${depth:-2}"
 
   # Seed the head from this pull request's own last analysis when there is one,
   # so the run only covers commits pushed since it.
@@ -219,7 +215,7 @@ analyze_review() {
 
   incremental "$CHECKOUT_DIR" "$head_state"
   if [ "$REQUIRES_FULL" = true ]; then
-    full "$CHECKOUT_DIR" "$head_state" "$depth"
+    full "$CHECKOUT_DIR" "$head_state" "$DEPTH_LEVEL"
   fi
 
   write_origin "$head_state" "$seed_source" "$chain_depth" "$(analysis_digest "$base_analysis")"

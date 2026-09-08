@@ -28,8 +28,14 @@ with open(os.environ["CB_ENGINE_LOG"], "a") as log:
         "depth": argv[argv.index("--depth-level") + 1] if "--depth-level" in argv else None,
     }) + "\\n")
 analysis = os.path.join(output, "analysis.json")
+metadata = json.load(open(analysis))["metadata"] if os.path.isfile(analysis) else {}
+if argv[0] == "incremental" and os.environ.get("CB_REQUIRE_FULL") == "true":
+    print(json.dumps({"requiresFullAnalysis": True}))
+    sys.exit(0)
+if argv[0] == "full":
+    metadata = {"depth_cap": int(argv[argv.index("--depth-level") + 1])}
 with open(analysis, "w") as handle:
-    json.dump({"metadata": {"depth_level": 2}, "components": [], "components_relations": []}, handle)
+    json.dump({"metadata": metadata, "components": [], "components_relations": []}, handle)
 print(json.dumps({"requiresFullAnalysis": False, "analysis_path": analysis}))
 '''
 
@@ -41,7 +47,7 @@ def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
 
-def _state(directory: Path, depth: int = 2, cap: int | None = None, **origin: object) -> Path:
+def _state(directory: Path, depth: int = 2, cap: int | None = 2, **origin: object) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     metadata: dict[str, int] = {"depth_level": depth}
     if cap is not None:
@@ -128,6 +134,7 @@ class CacheKeyTests(unittest.TestCase):
     def test_model_selection_changes_the_identity(self) -> None:
         baseline = self._run()
 
+        self.assertNotEqual(baseline["cfg_hash"], self._run(DEPTH_LEVEL="4")["cfg_hash"])
         self.assertNotEqual(baseline["cfg_hash"], self._run(MODEL="gpt-5")["cfg_hash"])
         self.assertNotEqual(baseline["cfg_hash"], self._run(AGENT_MODEL_INPUT="gpt-5")["cfg_hash"])
         self.assertNotEqual(baseline["cfg_hash"], self._run(PARSING_MODEL_INPUT="gpt-5")["cfg_hash"])
@@ -234,11 +241,92 @@ class ReviewChainTests(unittest.TestCase):
 
     def test_depth_change_discards_the_stored_analysis(self) -> None:
         _state(self.base_dir, depth=2)
-        _state(self.warmstart_dir, depth=1, chain_depth=3)
+        _state(self.warmstart_dir, depth=1, cap=1, chain_depth=3)
 
         values = self._analyze()
 
         self.assertEqual(values["seed_source"], "base")
+
+    def _commit_base(self, cap: int | None = None, legacy: bool = False) -> str:
+        if cap is not None or legacy:
+            _state(self.checkout / ".codeboarding", depth=1, cap=cap)
+        (self.checkout / "code.py").write_text("pass\n")
+        for args in (
+            ("init",),
+            ("add", "."),
+            (
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.com",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-m",
+                "test: base",
+            ),
+        ):
+            subprocess.run(["git", "-C", str(self.checkout), *args], check=True, capture_output=True)
+        return subprocess.check_output(["git", "-C", str(self.checkout), "rev-parse", "HEAD"], text=True).strip()
+
+    def test_missing_baseline_runs_full_then_incremental_at_configured_depth(self) -> None:
+        sha = self._commit_base()
+        values = self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4")
+        calls = self._engine_calls()
+        self.assertEqual([c["mode"] for c in calls], ["full", "incremental"])
+        self.assertEqual(calls[0]["depth"], "4")
+        self.assertEqual(calls[1]["checkout"], str(self.checkout))
+        self.assertEqual(values["publish_base"], "true")
+        for kind in ("base", "warmstart"):
+            analysis = json.loads((self.stage_dir / kind / "analysis.json").read_text())
+            self.assertEqual(analysis["metadata"]["depth_cap"], 4)
+
+    def test_compatible_committed_baseline_runs_incrementally(self) -> None:
+        sha = self._commit_base(cap=4)
+        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4")
+        self.assertEqual([c["mode"] for c in self._engine_calls()], ["incremental", "incremental"])
+
+    def test_legacy_committed_depth_is_not_inherited(self) -> None:
+        sha = self._commit_base(legacy=True)
+        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4")
+        self.assertEqual([c["mode"] for c in self._engine_calls()], ["full", "incremental"])
+        self.assertEqual(self._engine_calls()[0]["depth"], "4")
+
+    def test_changed_configuration_rebuilds_the_base(self) -> None:
+        sha = self._commit_base(cap=2)
+        _state(self.base_dir, cap=2)
+        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4")
+        self.assertEqual([c["mode"] for c in self._engine_calls()], ["full", "incremental"])
+        self.assertEqual(self._engine_calls()[0]["depth"], "4")
+
+    def test_head_full_fallback_uses_configured_cap(self) -> None:
+        _state(self.base_dir, depth=1, cap=4)
+        self._analyze(DEPTH_LEVEL="4", CB_REQUIRE_FULL="true")
+        self.assertEqual([c["mode"] for c in self._engine_calls()], ["incremental", "full"])
+        self.assertEqual(self._engine_calls()[1]["depth"], "4")
+
+    def test_base_and_head_fallbacks_keep_configured_depth(self) -> None:
+        sha = self._commit_base(cap=4)
+        self._analyze(REVIEW_BASE_SHA=sha, DEPTH_LEVEL="4", CB_REQUIRE_FULL="true")
+        calls = self._engine_calls()
+        self.assertEqual([c["mode"] for c in calls], ["incremental", "full", "incremental", "full"])
+        self.assertEqual([c["depth"] for c in calls if c["mode"] == "full"], ["4", "4"])
+
+    def test_invalid_depth_fails_before_analysis(self) -> None:
+        result = subprocess.run(
+            [str(ANALYZE)],
+            env={"PATH": os.environ["PATH"], "DEPTH_LEVEL": "-1"},
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("depth_level must be a positive integer", result.stdout)
+        self.assertEqual(self._engine_calls(), [])
+
+    def test_sync_without_baseline_uses_configured_depth_directly(self) -> None:
+        self._analyze(ANALYSIS_KIND="sync", FORCE_FULL="false", DEPTH_LEVEL="4")
+        self.assertEqual([c["mode"] for c in self._engine_calls()], ["full"])
+        self.assertEqual(self._engine_calls()[0]["depth"], "4")
 
     def test_a_run_that_stopped_short_of_its_cap_keeps_the_chain(self) -> None:
         # Core resolves incremental depth from depth_cap, so a realized

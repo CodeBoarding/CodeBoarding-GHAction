@@ -111,14 +111,10 @@ else
 
   BASELINE_DEPTH=""
   if [ -f "$BASE_DIR/.codeboarding/analysis.json" ]; then
-    BASELINE_DEPTH="$(python3 -c 'import json, sys; data = json.load(open(sys.argv[1])); print(data.get("metadata", {}).get("depth_level", ""))' "$BASE_DIR/.codeboarding/analysis.json" 2>/dev/null || true)"
+    BASELINE_DEPTH="$(python3 -c 'import json, sys; data = json.load(open(sys.argv[1])); print(data.get("metadata", {}).get("depth_cap", ""))' "$BASE_DIR/.codeboarding/analysis.json" 2>/dev/null || true)"
   fi
 
-  if [ -n "$BASELINE_DEPTH" ] && [[ "$BASELINE_DEPTH" =~ ^[0-9]+$ ]]; then
-    DEPTH="$BASELINE_DEPTH"
-  fi
-
-  if [ -f "$BASE_DIR/.codeboarding/analysis.json" ]; then
+  if [ "$BASELINE_DEPTH" = "$DEPTH" ]; then
     cp -a "$BASE_DIR/.codeboarding/." "$BASE_STATE/"
     BASE_OUTPUT="$(run_inc "$BASE_DIR" "$BASE_STATE")"
     BASE_MODE="$(parse_value analysis_mode "$BASE_OUTPUT")"

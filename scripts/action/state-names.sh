@@ -35,8 +35,8 @@ ignore_file="$CHECKOUT_DIR/.codeboarding/.codeboardingignore"
 # does. It carries no key: rotating a secret must not throw away reusable analysis.
 model_digest="$(printf '%s\n%s\n%s\n%s\n%s\n' \
   "${LLM_PROVIDER:-}" "${BACKEND_ID:-}" "${MODEL:-}" "${AGENT_MODEL_INPUT:-}" "${PARSING_MODEL_INPUT:-}" | digest)"
-cfg="$(printf '%s\n%s\n%s\n%s\n' \
-  "$STATE_SCHEMA" "$engine_version" "$ignore_digest" "$model_digest" | digest)"
+cfg="$(printf '%s\n%s\n%s\n%s\n%s\n' \
+  "$STATE_SCHEMA" "$engine_version" "$ignore_digest" "$model_digest" "${DEPTH_LEVEL:-2}" | digest)"
 
 {
   echo "engine_version=$engine_version"

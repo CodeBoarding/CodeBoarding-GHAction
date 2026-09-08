@@ -99,12 +99,15 @@ them:
 
 | Source | Engine cost |
 |---|---|
-| the published `codeboarding-base-<cfg>-<merge_base>` artifact | none |
-| no artifact — check out the merge base, seed from the baseline committed there, catch up | one incremental |
-| no committed baseline either | full analysis |
+| the published `codeboarding-base-<cfg>-<merge_base>` artifact with a compatible depth cap | none |
+| no usable artifact — check out the merge base, seed from a compatible baseline committed there, catch up | one incremental, full if Core requires it |
+| no compatible committed baseline either | full analysis directly, at the configured `depth_level` |
 
 A trusted run that computed the base publishes it, so the next pull request
 forking from that commit gets the first row.
+
+The configuration hash includes `depth_level`. The workflow input controls depth
+for both fresh and fallback analyses; stored legacy depth values never override it.
 
 **Head**, first match wins:
 

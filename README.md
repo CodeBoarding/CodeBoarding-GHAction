@@ -304,6 +304,7 @@ With the default `github.token`, the repository or organization must allow GitHu
 | `model` | both | empty | Default model for both analysis and parsing. |
 | `agent_model` | both | empty | Analysis-only override for `model`. |
 | `parsing_model` | both | empty | Parsing-only override for `model`. |
+| `depth_level` | both | `2` | Positive integer analysis depth cap, including full-analysis fallbacks. Changing it rebuilds incompatible state. |
 | `github_token` | both | `${{ github.token }}` | Token for comments and sync delivery. |
 | `sync_strategy` | sync | `push` | `push` or `pull_request`. |
 | `target_branch` | sync | event branch | Branch receiving the baseline or rolling PR. |
@@ -311,6 +312,17 @@ With the default `github.token`, the repository or organization must allow GitHu
 | `warmstart_retention_days` | review | `1` | Days to keep the reusable analysis. Only the next run reads it. |
 
 The `/codeboarding` command, comment heading, Mermaid direction (`LR`), hosted webview URL, rolling sync branch, commit message, and CodeBoarding 0.14.0 version are intentionally fixed rather than exposed as configuration.
+
+Review mode needs no sync workflow or committed `.codeboarding` directory. If no
+usable merge-base analysis exists, it runs full analysis there directly, then
+seeds an incremental analysis of the PR head and publishes both states. Later
+runs prefer compatible prior PR state for incremental updates, while the review
+still compares the merge base with the current head.
+
+Set `depth_level` in the action's `with:` block (for example, `depth_level: 4`).
+This configuration is authoritative: stored `metadata.depth_cap` is checked for
+compatibility, not inherited, and legacy `metadata.depth_level` is not used as a
+fallback. Missing or incompatible baseline depth triggers a rebuild.
 
 ## Outputs
 
