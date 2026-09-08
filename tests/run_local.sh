@@ -7,7 +7,7 @@ set -euo pipefail
 #   2) REVIEW LOCAL (full local pipeline):
 #      tests/run_local.sh --repo /path/to/repo --base <base-ref> --head <head-ref>
 #   3) REVIEW LOCAL against committed baseline only (if available):
-#      tests/run_local.sh --repo /path/to/repo --base <base-ref> --head <head-ref> --depth 2
+#      tests/run_local.sh --repo /path/to/repo --base <base-ref> --head <head-ref> --depth-cap 2
 #
 # Output:
 #   diagram.md   Mermaid payload posted by the action
@@ -29,7 +29,7 @@ while [ $# -gt 0 ]; do
     --base-json) BASE_JSON="$2"; shift 2;;
     --head-json) HEAD_JSON="$2"; shift 2;;
     --out) OUT="$2"; shift 2;;
-    --depth) DEPTH="$2"; shift 2;;
+    --depth-cap) DEPTH="$2"; shift 2;;
     --direction) DIRECTION="$2"; shift 2;;
     --no-open) OPEN="no"; shift;;
     -h|--help)
@@ -67,7 +67,7 @@ run_full() {
   python3 "$ACTION_DIR/scripts/analyze_repository.py" full \
     --checkout "$checkout" \
     --output-dir "$out_dir" \
-    --depth-level "$DEPTH"
+    --depth-cap "$DEPTH"
 }
 
 if [ -n "$BASE_JSON" ] && [ -n "$HEAD_JSON" ]; then
@@ -111,14 +111,10 @@ else
 
   BASELINE_DEPTH=""
   if [ -f "$BASE_DIR/.codeboarding/analysis.json" ]; then
-    BASELINE_DEPTH="$(python3 -c 'import json, sys; data = json.load(open(sys.argv[1])); print(data.get("metadata", {}).get("depth_level", ""))' "$BASE_DIR/.codeboarding/analysis.json" 2>/dev/null || true)"
+    BASELINE_DEPTH="$(python3 -c 'import json, sys; data = json.load(open(sys.argv[1])); print(data.get("metadata", {}).get("depth_cap", ""))' "$BASE_DIR/.codeboarding/analysis.json" 2>/dev/null || true)"
   fi
 
-  if [ -n "$BASELINE_DEPTH" ] && [[ "$BASELINE_DEPTH" =~ ^[0-9]+$ ]]; then
-    DEPTH="$BASELINE_DEPTH"
-  fi
-
-  if [ -f "$BASE_DIR/.codeboarding/analysis.json" ]; then
+  if [ "$BASELINE_DEPTH" = "$DEPTH" ]; then
     cp -a "$BASE_DIR/.codeboarding/." "$BASE_STATE/"
     BASE_OUTPUT="$(run_inc "$BASE_DIR" "$BASE_STATE")"
     BASE_MODE="$(parse_value analysis_mode "$BASE_OUTPUT")"
