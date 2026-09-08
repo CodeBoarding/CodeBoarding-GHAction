@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.15.0](https://github.com/CodeBoarding/CodeBoarding-action/compare/v1.14.0...v1.15.0) (2026-09-08)
+
+
+### Features
+
+* review draft pull requests by default ([#121](https://github.com/CodeBoarding/CodeBoarding-action/issues/121)) ([d9e9275](https://github.com/CodeBoarding/CodeBoarding-action/commit/d9e92759ee03df0a7bfb4c188fdc73fa83a69003))
+
+
+### Bug Fixes
+
+* restore configurable depth and bootstrap missing review baselines directly ([#120](https://github.com/CodeBoarding/CodeBoarding-action/issues/120)) ([b497396](https://github.com/CodeBoarding/CodeBoarding-action/commit/b497396d974546044ed519afb1e9090efc4a2c19))
+* update CodeBoarding dependency to 0.14.2 ([#123](https://github.com/CodeBoarding/CodeBoarding-action/issues/123)) ([c109947](https://github.com/CodeBoarding/CodeBoarding-action/commit/c10994772e182c40ab2993cc72689d0bb9974f09))
+
 ## [1.14.0](https://github.com/CodeBoarding/CodeBoarding-action/compare/v1.13.0...v1.14.0) (2026-09-06)
 
 
