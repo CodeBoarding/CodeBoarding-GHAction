@@ -48,7 +48,7 @@ def annotations(entries: list[dict]) -> list[str]:
     lines = []
     for entry in entries:
         level = "warning" if entry.get("severity") == "degraded" else "notice"
-        remedy = entry.get("remedy") or f"Not something you can fix — please report it: {DISCORD_URL}"
+        remedy = entry.get("remedy") or f"Nothing on your side causes this; please report it: {DISCORD_URL}"
         lines.append(f"::{level}::{entry.get('title', 'Analysis diagnostic')} {entry.get('detail', '')} {remedy}")
     return lines
 
@@ -76,7 +76,7 @@ def markdown(entries: list[dict]) -> str:
         title = entry.get("title", "Analysis diagnostic")
         count = entry.get("count", 1)
         repeated = f" (×{count})" if isinstance(count, int) and count > 1 else ""
-        lines.append(f"- **{title}**{repeated} — {entry.get('detail', '')}")
+        lines.append(f"- **{title}**{repeated}: {entry.get('detail', '')}")
         remedy = entry.get("remedy")
         if remedy:
             lines.append(f"  - {remedy}")
