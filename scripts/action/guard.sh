@@ -42,6 +42,21 @@ fi
 
 case "$EVENT" in
   pull_request|pull_request_target)
+    run_on_pull_requests="${RUN_ON_PULL_REQUESTS:-true}"
+    run_on_draft_pull_requests="${RUN_ON_DRAFT_PULL_REQUESTS:-true}"
+    case "${run_on_pull_requests,,}" in
+      true|false) ;;
+      *) fail "run_on_pull_requests must be true or false." ;;
+    esac
+    case "${run_on_draft_pull_requests,,}" in
+      true|false) ;;
+      *) fail "run_on_draft_pull_requests must be true or false." ;;
+    esac
+    if [ "${PULL_IS_DRAFT:-false}" = true ]; then
+      [ "${run_on_draft_pull_requests,,}" = true ] || skip "Automatic reviews are disabled for draft pull requests."
+    else
+      [ "${run_on_pull_requests,,}" = true ] || skip "Automatic reviews are disabled for non-draft pull requests."
+    fi
     pr_number="$EVENT_PR_NUMBER"
     base_sha="$PULL_BASE_SHA"
     head_sha="$PULL_HEAD_SHA"

@@ -62,6 +62,14 @@ class ActionInputTests(unittest.TestCase):
         self.assertIn("required: true", block)
         self.assertNotIn("default:", block)
 
+    def test_pull_request_state_inputs_default_to_enabled_and_reach_the_guard(self) -> None:
+        for name in ("run_on_pull_requests", "run_on_draft_pull_requests"):
+            with self.subTest(input=name):
+                self.assertIn("default: 'true'", self.inputs[name])
+                self.assertIn(f"{name.upper()}: ${{{{ inputs.{name} }}}}", ACTION)
+
+        self.assertIn("PULL_IS_DRAFT: ${{ github.event.pull_request.draft }}", ACTION)
+
     def test_the_inferred_credential_inputs_are_gone(self) -> None:
         """`llm_api_key`/`llm_provider` are what made a fallback expressible at all."""
         for stale in ("llm_api_key", "llm_provider"):
