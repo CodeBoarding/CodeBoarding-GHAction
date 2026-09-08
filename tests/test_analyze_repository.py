@@ -135,6 +135,8 @@ class AnalyzeRepositoryTests(unittest.TestCase):
             stale_artifact.write_text("stale", encoding="utf-8")
 
             def fake_run(_args, output_dir):
+                self.assertIn("--depth-cap", _args)
+                self.assertNotIn("--depth-level", _args)
                 (output_dir / "analysis.json").write_text("ok", encoding="utf-8")
                 return "human-readable CLI output"
 
@@ -147,13 +149,20 @@ class AnalyzeRepositoryTests(unittest.TestCase):
                         str(checkout),
                         "--output-dir",
                         str(out_dir),
-                        "--depth-level",
+                        "--depth-cap",
                         "1",
                     ]
                 )
 
             self.assertIn(f"analysis_path={out_dir / 'analysis.json'}", stdout.getvalue())
             self.assertFalse(stale_artifact.exists())
+
+    def test_old_depth_input_is_rejected(self) -> None:
+        with patch("sys.stderr", io.StringIO()), patch.object(ar, "_run_command") as command:
+            with self.assertRaises(SystemExit) as raised:
+                ar.main(["full", "--checkout", ".", "--output-dir", ".", "--depth-level", "3"])
+        self.assertEqual(raised.exception.code, 2)
+        command.assert_not_called()
 
     def test_main_rejects_bad_cli_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

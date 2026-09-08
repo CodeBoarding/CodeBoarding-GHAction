@@ -24,9 +24,8 @@ incremental() {
 }
 full() {
   local checkout="$1" output_dir="$2" depth="$3" output
-  # Core's CLI calls the configured cap --depth-level; metadata stores depth_cap.
   output="$(python3 "$ACTION_PATH/scripts/analyze_repository.py" full \
-    --checkout "$checkout" --output-dir "$output_dir" --depth-level "$depth")"
+    --checkout "$checkout" --output-dir "$output_dir" --depth-cap "$depth")"
   parse_output "$output"
   if [ "$ANALYSIS_MODE" != full ] || [ ! -f "$ANALYSIS_PATH" ]; then
     echo "::error::Invalid full-analysis result."

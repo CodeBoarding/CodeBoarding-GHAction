@@ -327,9 +327,15 @@ fallback. Missing or incompatible baseline depth triggers a rebuild.
 `metadata.depth_cap` records the configured maximum; `metadata.depth_level`
 records the depth actually reached, which can be shallower. Comparing the cap
 avoids rejecting valid state or reducing future rebuild depth when a run stops
-early. The action input matches the metadata name. Only the engine CLI boundary
-still uses `--depth-level`, Core's existing flag for the cap. Historical workflows
-using the removed `depth_level` action input should switch to `depth_cap`.
+early. The action input matches the metadata name and the engine receives only
+`--depth-cap`. There are no old-name input aliases. Historical workflows using
+the removed `depth_level` action input must switch to `depth_cap`.
+
+**Release blocker:** this branch requires Core PR #578's new CLI contract.
+The current 0.14.0 engine pin does not support `--depth-cap`; do not merge or
+release this action until a compatible Core release is published and both the
+engine pin and supported-provider table are updated. Earlier eShop evidence
+predates this final breaking CLI migration.
 
 ## Outputs
 

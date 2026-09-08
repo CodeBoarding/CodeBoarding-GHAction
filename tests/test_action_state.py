@@ -25,7 +25,7 @@ with open(os.environ["CB_ENGINE_LOG"], "a") as log:
     log.write(json.dumps({
         "mode": argv[0],
         "checkout": argv[argv.index("--local") + 1],
-        "depth": argv[argv.index("--depth-level") + 1] if "--depth-level" in argv else None,
+        "depth": argv[argv.index("--depth-cap") + 1] if "--depth-cap" in argv else None,
     }) + "\\n")
 analysis = os.path.join(output, "analysis.json")
 metadata = json.load(open(analysis))["metadata"] if os.path.isfile(analysis) else {}
@@ -33,7 +33,7 @@ if argv[0] == "incremental" and os.environ.get("CB_REQUIRE_FULL") == "true":
     print(json.dumps({"requiresFullAnalysis": True}))
     sys.exit(0)
 if argv[0] == "full":
-    metadata = {"depth_cap": int(argv[argv.index("--depth-level") + 1])}
+    metadata = {"depth_cap": int(argv[argv.index("--depth-cap") + 1])}
 with open(analysis, "w") as handle:
     json.dump({"metadata": metadata, "components": [], "components_relations": []}, handle)
 print(json.dumps({"requiresFullAnalysis": False, "analysis_path": analysis}))
